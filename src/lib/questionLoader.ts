@@ -3,6 +3,7 @@ import {
 	bulkPutQuestions,
 	getAllQuestions,
 	getLoadedModules,
+	getQuestionsByModule,
 	getMeta,
 	META_KEYS,
 	markModuleLoaded,
@@ -37,15 +38,10 @@ export async function loadModuleFile(
 	file: string,
 	force = false,
 ): Promise<LoadResult> {
-	// Skip if already loaded (unless forced)
-	if (!force) {
-		const loaded = await getLoadedModules();
-		if (loaded.includes(file)) {
-			return { file, loaded: 0, skipped: 0, errors: [] };
-		}
-	}
-
 	const url = file.startsWith("http") ? file : `/questions/${file}`;
+
+	// Check if already marked as loaded
+	const alreadyLoaded = !force && (await getLoadedModules()).includes(file);
 
 	let raw: unknown;
 	try {
@@ -71,6 +67,24 @@ export async function loadModuleFile(
 	}
 
 	const { valid, errors } = validateQuestions(raw);
+
+	if (alreadyLoaded && valid.length > 0) {
+		// Incremental check: derive module name from first valid item and compare counts
+		const moduleKey = valid[0].module as string;
+		const existing = await getQuestionsByModule(moduleKey);
+		if (valid.length <= existing.length) {
+			// No new questions, skip
+			return { file, loaded: 0, skipped: 0, errors };
+		}
+		// New questions detected — upsert all (bulkPut is idempotent by id)
+		await bulkPutQuestions(valid as Question[]);
+		return {
+			file,
+			loaded: valid.length - existing.length,
+			skipped: Array.isArray(raw) ? (raw as unknown[]).length - valid.length : 0,
+			errors,
+		};
+	}
 
 	if (valid.length > 0) {
 		await bulkPutQuestions(valid as Question[]);

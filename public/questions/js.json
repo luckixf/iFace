@@ -585,5 +585,3 @@
     "source": "高频"
   }
 ]
-    "question": "var、let、const 有什么区别？",
-    "answer": "## var、let、const 的区别\n\n### 1. 作用域\n- `var`：函数作用域，在函数外声明则为全局变量\n- `let`/`const`：块级作用域，只在 `{}` 内有效\n\n### 2. 变量提升\n- `var` 存在变量提升，声明会提升到函数顶部，值为 `undefined`\n- `let`/`const` 存在「暂时性死区（TDZ）」，声明前访问会报 `ReferenceError`\n\n### 3. 重复声明\n- `var` 允许重复声明\n- `let`/`const` 不允许在
