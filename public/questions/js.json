@@ -1,0 +1,589 @@
+[
+  {
+    "id": "js-001",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "var、let、const 的区别是什么？",
+    "answer": "## var、let、const 的区别\n\n### 1. 作用域\n- `var`：函数作用域，存在变量提升\n- `let`/`const`：块级作用域，不存在变量提升（存在暂时性死区 TDZ）\n\n### 2. 重复声明\n- `var`：允许重复声明\n- `let`/`const`：不允许重复声明\n\n### 3. 变量提升\n```js\nconsole.log(a); // undefined（var 提升）\nvar a = 1;\n\nconsole.log(b); // ReferenceError（TDZ）\nlet b = 2;\n```\n\n### 4. const 特性\n- 声明时必须初始化\n- 不能重新赋值（基本类型不可变，引用类型内部可修改）\n\n```js\nconst obj = { a: 1 };\nobj.a = 2; // ✅ 可以修改属性\nobj = {};  // ❌ TypeError\n```\n\n### 5. 全局变量\n- `var` 声明的全局变量会挂载到 `window` 上\n- `let`/`const` 不会\n\n### 最佳实践\n优先使用 `const`，需要重新赋值时用 `let`，避免使用 `var`。",
+    "tags": ["变量声明", "作用域", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-002",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "什么是闭包？闭包的应用场景有哪些？",
+    "answer": "## 闭包（Closure）\n\n### 定义\n闭包是指一个函数能够记住并访问其词法作用域，即使该函数在其词法作用域之外执行。\n\n### 形成条件\n1. 函数嵌套\n2. 内部函数引用外部函数的变量\n3. 内部函数被返回或传递到外部\n\n```js\nfunction outer() {\n  let count = 0;\n  return function inner() {\n    count++;\n    return count;\n  };\n}\n\nconst counter = outer();\nconsole.log(counter()); // 1\nconsole.log(counter()); // 2\n```\n\n### 应用场景\n\n**1. 数据私有化（模块模式）**\n```js\nfunction createCounter() {\n  let count = 0;\n  return {\n    increment() { count++; },\n    decrement() { count--; },\n    getCount() { return count; }\n  };\n}\n```\n\n**2. 函数工厂**\n```js\nfunction multiply(x) {\n  return function(y) {\n    return x * y;\n  };\n}\nconst double = multiply(2);\ndouble(5); // 10\n```\n\n**3. 防抖/节流**\n\n**4. 循环中保存变量**\n```js\nfor (let i = 0; i < 3; i++) {\n  setTimeout(() => console.log(i), 1000); // 0 1 2\n}\n```\n\n### 注意事项\n- 闭包会导致变量无法被 GC 回收，可能造成内存泄漏\n- 不再需要时应及时解除引用",
+    "tags": ["闭包", "作用域", "内存"],
+    "source": "高频"
+  },
+  {
+    "id": "js-003",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "解释 JavaScript 中的原型链",
+    "answer": "## 原型链\n\n### 基本概念\n每个对象都有一个内部属性 `[[Prototype]]`（通过 `__proto__` 访问），指向其构造函数的 `prototype` 对象。当访问对象属性时，若自身没有，则沿原型链向上查找，直到 `null`。\n\n```js\nfunction Person(name) {\n  this.name = name;\n}\nPerson.prototype.sayHello = function() {\n  console.log(`Hello, I'm ${this.name}`);\n};\n\nconst alice = new Person('Alice');\nalice.sayHello(); // Hello, I'm Alice\n\n// 原型链：alice -> Person.prototype -> Object.prototype -> null\nconsole.log(alice.__proto__ === Person.prototype);            // true\nconsole.log(Person.prototype.__proto__ === Object.prototype); // true\nconsole.log(Object.prototype.__proto__);                      // null\n```\n\n### 关键关系\n```js\nPerson.prototype.constructor === Person; // true\nalice instanceof Person;                 // true\n```\n\n### 属性查找顺序\n1. 实例自身属性\n2. 构造函数的 `prototype`\n3. 父类的 `prototype`\n4. `Object.prototype`\n5. `null`（终止查找）\n\n### 常用方法\n```js\nObject.getPrototypeOf(alice);       // 获取原型\nalice.hasOwnProperty('name');       // 是否自身属性\n'sayHello' in alice;                // 包含原型链查找\n```",
+    "tags": ["原型链", "继承", "OOP"],
+    "source": "高频"
+  },
+  {
+    "id": "js-004",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "JavaScript 中 this 的指向规则是什么？",
+    "answer": "## this 的绑定规则\n\n### 1. 默认绑定\n独立函数调用，非严格模式下指向 `window`，严格模式下为 `undefined`。\n```js\nfunction foo() { console.log(this); }\nfoo(); // window（严格模式：undefined）\n```\n\n### 2. 隐式绑定\n作为对象方法调用，指向调用对象。\n```js\nconst obj = { name: 'obj', foo() { console.log(this.name); } };\nobj.foo(); // 'obj'\n```\n\n### 3. 显式绑定\n通过 `call`、`apply`、`bind` 手动指定。\n```js\nfunction greet() { console.log(this.name); }\ngreet.call({ name: 'Alice' }); // 'Alice'\ngreet.apply({ name: 'Bob' });  // 'Bob'\nconst bound = greet.bind({ name: 'Carol' });\nbound(); // 'Carol'\n```\n\n### 4. new 绑定\n构造函数调用，指向新创建的实例。\n```js\nfunction Person(name) { this.name = name; }\nconst p = new Person('Dave');\nconsole.log(p.name); // 'Dave'\n```\n\n### 5. 箭头函数\n没有自己的 `this`，继承外层词法作用域的 `this`，且无法被 call/apply/bind 改变。\n```js\nconst obj = {\n  name: 'obj',\n  foo: () => console.log(this.name), // this 指向外层（window）\n  bar() {\n    const arrow = () => console.log(this.name); // this 指向 obj\n    arrow();\n  }\n};\n```\n\n### 优先级\nnew > 显式绑定 > 隐式绑定 > 默认绑定",
+    "tags": ["this", "绑定", "箭头函数"],
+    "source": "高频"
+  },
+  {
+    "id": "js-005",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "== 和 === 的区别，以及隐式类型转换规则",
+    "answer": "## == vs ===\n\n### === 严格相等\n不进行类型转换，类型和值都必须相同。\n\n### == 抽象相等（会触发隐式类型转换）\n\n**转换规则：**\n1. `null == undefined` → `true`（特殊规则）\n2. 数字 vs 字符串 → 字符串转数字\n3. 布尔值 vs 其他 → 布尔值转数字\n4. 对象 vs 原始值 → 对象调用 `valueOf()`/`toString()`\n\n```js\n// 常见陷阱\nconsole.log(0 == false);        // true（false→0）\nconsole.log('' == false);       // true（都转为0）\nconsole.log(null == undefined); // true\nconsole.log(null == 0);         // false（null不转换）\nconsole.log([] == false);       // true（[]→''→0，false→0）\nconsole.log([] == ![]);         // true（经典陷阱）\nconsole.log(NaN == NaN);        // false（NaN不等于自身）\n```\n\n### [] == ![] 解析\n```js\n// ![] → false（[]是真值，取反为false）\n// [] == false\n// [] → '' → 0\n// false → 0\n// 0 == 0 → true\n```\n\n### 最佳实践\n- 始终使用 `===`，避免隐式转换带来的 bug\n- 需要判断 null/undefined 时可以用 `== null`",
+    "tags": ["类型转换", "相等性", "陷阱"],
+    "source": "高频"
+  },
+  {
+    "id": "js-006",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "什么是事件循环（Event Loop）？",
+    "answer": "## 事件循环（Event Loop）\n\n### 基本概念\nJavaScript 是单线程语言，事件循环是其处理异步操作的机制。\n\n### 执行模型\n1. **调用栈（Call Stack）**：同步代码的执行环境\n2. **微任务队列（Microtask Queue）**：Promise.then、MutationObserver、queueMicrotask\n3. **宏任务队列（Macrotask Queue）**：setTimeout、setInterval、I/O、UI 渲染\n\n### 执行顺序\n1. 执行当前同步代码（调用栈清空）\n2. 执行**所有**微任务（包括微任务中产生的新微任务）\n3. 执行一个宏任务\n4. 重复步骤 2-3\n\n```js\nconsole.log('1');\n\nsetTimeout(() => console.log('2'), 0);\n\nPromise.resolve().then(() => {\n  console.log('3');\n  Promise.resolve().then(() => console.log('4'));\n});\n\nconsole.log('5');\n\n// 输出：1 5 3 4 2\n```\n\n### 分析\n- `1`、`5`：同步代码\n- `3`、`4`：微任务（4 是微任务中产生的微任务，也在本轮清空）\n- `2`：宏任务（下一轮循环）\n\n### Node.js 中的差异\nNode.js 有额外的 `process.nextTick`（优先级高于 Promise.then）和 `setImmediate`。",
+    "tags": ["事件循环", "异步", "微任务", "宏任务"],
+    "source": "高频"
+  },
+  {
+    "id": "js-007",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "Promise 的三种状态及常用方法",
+    "answer": "## Promise\n\n### 三种状态\n- **pending**：初始状态\n- **fulfilled**：操作成功（resolved）\n- **rejected**：操作失败\n\n状态一旦改变就不可逆。\n\n### 常用方法\n\n**实例方法：**\n```js\nconst p = new Promise((resolve, reject) => {\n  setTimeout(() => resolve('success'), 1000);\n});\n\np.then(value => console.log(value))   // 成功回调\n .catch(err => console.error(err))    // 失败回调\n .finally(() => console.log('done')); // 无论如何都执行\n```\n\n**静态方法：**\n```js\n// 全部成功才成功，一个失败则失败\nPromise.all([p1, p2, p3]);\n\n// 一个成功就成功，全部失败才失败\nPromise.any([p1, p2, p3]);\n\n// 第一个 settle 的结果（无论成败）\nPromise.race([p1, p2, p3]);\n\n// 等待全部 settle，返回每个结果的状态\nPromise.allSettled([p1, p2, p3]);\n\n// 快速创建\nPromise.resolve('value');\nPromise.reject(new Error('err'));\n```\n\n### Promise 链式调用\n```js\nfetch('/api/user')\n  .then(res => res.json())\n  .then(data => data.name)\n  .then(name => console.log(name))\n  .catch(err => console.error(err));\n```\n\n### 注意\n- `.then()` 返回新的 Promise\n- 错误会沿链传递直到 `.catch()`",
+    "tags": ["Promise", "异步", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-008",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "async/await 的原理和使用",
+    "answer": "## async/await\n\n### 本质\n`async/await` 是 Promise 的语法糖，基于 Generator 实现，让异步代码看起来像同步代码。\n\n### 基本用法\n```js\nasync function fetchUser(id) {\n  try {\n    const res = await fetch(`/api/user/${id}`);\n    const data = await res.json();\n    return data;\n  } catch (err) {\n    console.error('Error:', err);\n    throw err;\n  }\n}\n\n// async 函数始终返回 Promise\nfetchUser(1).then(user => console.log(user));\n```\n\n### 并行执行\n```js\n// ❌ 串行（慢）\nconst a = await fetchA();\nconst b = await fetchB();\n\n// ✅ 并行（快）\nconst [a, b] = await Promise.all([fetchA(), fetchB()]);\n```\n\n### 错误处理\n```js\n// 方式1：try/catch\nasync function fn() {\n  try {\n    const data = await riskyOperation();\n  } catch (e) {\n    handleError(e);\n  }\n}\n\n// 方式2：返回元组（Go风格）\nasync function safeAwait(promise) {\n  try {\n    const data = await promise;\n    return [null, data];\n  } catch (err) {\n    return [err, null];\n  }\n}\n\nconst [err, data] = await safeAwait(fetchUser(1));\n```\n\n### 注意\n- `await` 只能在 `async` 函数内使用（顶层 await 在 ES2022 模块中可用）\n- `await` 会暂停当前 async 函数，但不阻塞主线程",
+    "tags": ["async/await", "Promise", "异步"],
+    "source": "高频"
+  },
+  {
+    "id": "js-009",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "JavaScript 数据类型有哪些？如何判断类型？",
+    "answer": "## JavaScript 数据类型\n\n### 原始类型（7种）\n`string`、`number`、`bigint`、`boolean`、`undefined`、`null`、`symbol`\n\n### 引用类型\n`Object`（包括 Array、Function、Date、RegExp、Map、Set 等）\n\n### 类型判断方法\n\n**1. typeof**\n```js\ntypeof 'str'        // 'string'\ntypeof 42           // 'number'\ntypeof true         // 'boolean'\ntypeof undefined    // 'undefined'\ntypeof Symbol()     // 'symbol'\ntypeof 42n          // 'bigint'\ntypeof {}           // 'object'\ntypeof []           // 'object'（不能区分数组）\ntypeof null         // 'object'（历史bug）\ntypeof function(){} // 'function'\n```\n\n**2. instanceof**\n```js\n[] instanceof Array   // true\n[] instanceof Object  // true（原型链）\n```\n\n**3. Object.prototype.toString（最准确）**\n```js\nObject.prototype.toString.call([])        // '[object Array]'\nObject.prototype.toString.call(null)      // '[object Null]'\nObject.prototype.toString.call(undefined) // '[object Undefined]'\nObject.prototype.toString.call(/reg/)     // '[object RegExp]'\n```\n\n**4. Array.isArray（专门判断数组）**\n```js\nArray.isArray([]);  // true\nArray.isArray({});  // false\n```\n\n### 原始类型 vs 引用类型\n- 原始类型存储在栈中，按值传递\n- 引用类型存储在堆中，按引用传递",
+    "tags": ["类型系统", "typeof", "instanceof"],
+    "source": "高频"
+  },
+  {
+    "id": "js-010",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "说说 JavaScript 的垃圾回收机制",
+    "answer": "## JavaScript 垃圾回收（GC）\n\n### 基本原理\nJS 引擎自动管理内存，通过标记不可达的对象并回收它们。\n\n### 主要算法\n\n**1. 标记清除（Mark-and-Sweep）—— 现代 V8 主要算法**\n- 从根（window/global）出发，标记所有可达对象\n- 清除未被标记的对象\n- 可处理循环引用\n\n**2. 引用计数（Reference Counting）—— 已淘汰**\n- 跟踪每个对象被引用的次数\n- 计数为 0 时回收\n- 问题：循环引用导致内存泄漏\n\n```js\n// 循环引用（引用计数算法的问题）\nfunction leak() {\n  const a = {};\n  const b = {};\n  a.ref = b;\n  b.ref = a;\n  // 标记清除可以处理，引用计数无法处理\n}\n```\n\n### V8 的优化\n- **分代收集**：新生代（Scavenge 算法）+ 老生代（标记清除+标记整理）\n- **增量标记**：将标记过程分散到多个小步骤，避免长时间暂停\n- **并发 GC**：GC 工作与主线程并行\n\n### 常见内存泄漏场景\n```js\n// 1. 意外的全局变量\nfunction fn() { leak = 'global'; } // 没有 var/let/const\n\n// 2. 未清除的计时器\nconst timer = setInterval(() => { /* 引用大对象 */ }, 1000);\n// 应该在适当时机 clearInterval(timer)\n\n// 3. 未移除的事件监听\nelement.addEventListener('click', handler);\n// 应该 element.removeEventListener('click', handler)\n\n// 4. 闭包持有大对象引用\n```",
+    "tags": ["垃圾回收", "内存管理", "V8"],
+    "source": "高频"
+  },
+  {
+    "id": "js-011",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "什么是变量提升（Hoisting）？",
+    "answer": "## 变量提升（Hoisting）\n\n### 定义\n在代码执行前，JavaScript 引擎会将变量和函数声明「提升」到其作用域顶部。\n\n### var 的提升\n```js\nconsole.log(a); // undefined（提升了声明，但未赋值）\nvar a = 5;\nconsole.log(a); // 5\n\n// 等价于：\nvar a;\nconsole.log(a);\na = 5;\n```\n\n### 函数声明的提升\n函数声明会完整提升（包括函数体）。\n```js\nhello(); // 'Hello!'（函数声明完整提升）\nfunction hello() { console.log('Hello!'); }\n\n// 函数表达式不会提升\ngreet(); // TypeError: greet is not a function\nvar greet = function() { console.log('Hi'); };\n```\n\n### let/const 的暂时性死区（TDZ）\n```js\nconsole.log(b); // ReferenceError: Cannot access 'b' before initialization\nlet b = 10;\n```\n\n`let`/`const` 也会「提升」，但在初始化前处于 TDZ，不可访问。\n\n### 提升优先级\n函数声明 > var 变量声明\n```js\nconsole.log(typeof foo); // 'function'\nvar foo = 1;\nfunction foo() {}\n```",
+    "tags": ["变量提升", "Hoisting", "作用域"],
+    "source": "高频"
+  },
+  {
+    "id": "js-012",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "什么是作用域链？",
+    "answer": "## 作用域链\n\n### 定义\n作用域链是由当前执行上下文及其所有父级执行上下文的变量对象组成的链表，用于变量查找。\n\n### 词法作用域\nJavaScript 使用词法作用域（静态作用域），函数的作用域在定义时就确定了，而不是调用时。\n\n```js\nlet x = 'global';\n\nfunction outer() {\n  let x = 'outer';\n\n  function inner() {\n    let x = 'inner';\n    console.log(x); // 'inner'（优先当前作用域）\n  }\n\n  function middle() {\n    console.log(x); // 'outer'（找到外层）\n  }\n\n  inner();\n  middle();\n}\n\nouter();\n```\n\n### 变量查找过程\n1. 当前作用域 → 找到返回\n2. 父作用域 → 找到返回\n3. ... 一直到全局作用域\n4. 全局作用域也没有 → `ReferenceError`\n\n### 与动态作用域的区别\n```js\nlet value = 'global';\nfunction foo() {\n  console.log(value); // JS 中：'global'（词法作用域）\n}\nfunction bar() {\n  let value = 'bar';\n  foo(); // 动态作用域中会打印 'bar'，JS 打印 'global'\n}\nbar();\n```",
+    "tags": ["作用域链", "词法作用域", "执行上下文"],
+    "source": "高频"
+  },
+  {
+    "id": "js-013",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "ES6 有哪些新特性？",
+    "answer": "## ES6（ES2015）主要新特性\n\n### 变量声明\n- `let`、`const`（块级作用域）\n\n### 箭头函数\n```js\nconst add = (a, b) => a + b;\n```\n\n### 模板字符串\n```js\nconst msg = `Hello, ${name}!`;\n```\n\n### 解构赋值\n```js\nconst { a, b } = obj;\nconst [x, y] = arr;\n```\n\n### 默认参数\n```js\nfunction greet(name = 'World') { return `Hello, ${name}`; }\n```\n\n### 展开/剩余运算符\n```js\nconst newArr = [...arr1, ...arr2];\nfunction sum(...nums) { return nums.reduce((a, b) => a + b, 0); }\n```\n\n### 类（Class）\n```js\nclass Animal {\n  constructor(name) { this.name = name; }\n  speak() { return `${this.name} makes a noise.`; }\n}\n```\n\n### 模块化\n```js\nexport default function foo() {}\nexport const bar = 1;\nimport foo, { bar } from './module';\n```\n\n### Promise\n\n### Symbol\n```js\nconst id = Symbol('id');\n```\n\n### Map 和 Set\n```js\nconst map = new Map();\nconst set = new Set([1, 2, 3]);\n```\n\n### 迭代器和生成器\n```js\nfunction* generator() {\n  yield 1;\n  yield 2;\n}\n```\n\n### Proxy 和 Reflect",
+    "tags": ["ES6", "新特性"],
+    "source": "高频"
+  },
+  {
+    "id": "js-014",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "call、apply、bind 的区别？",
+    "answer": "## call、apply、bind\n\n### 共同点\n都是 `Function.prototype` 上的方法，用于手动指定函数执行时的 `this`。\n\n### call\n立即调用，参数逐个传入。\n```js\nfunction greet(greeting, punctuation) {\n  return `${greeting}, ${this.name}${punctuation}`;\n}\n\nconst user = { name: 'Alice' };\ngreet.call(user, 'Hello', '!'); // 'Hello, Alice!'\n```\n\n### apply\n立即调用，参数以数组形式传入。\n```js\ngreet.apply(user, ['Hi', '.']); // 'Hi, Alice.'\n\n// 常用场景：将数组展开为参数\nMath.max.apply(null, [1, 2, 3]); // 3\n// 现在更推荐：Math.max(...[1, 2, 3])\n```\n\n### bind\n不立即调用，返回绑定了 `this` 的新函数。\n```js\nconst boundGreet = greet.bind(user, 'Hey');\nboundGreet('?'); // 'Hey, Alice?'\n\n// 常见场景：事件处理\nclass Button {\n  constructor() {\n    this.handleClick = this.handleClick.bind(this);\n  }\n  handleClick() { console.log(this); }\n}\n```\n\n### 对比\n| 方法 | 调用时机 | 参数形式 |\n|------|---------|--------|\n| call | 立即 | 逐个传入 |\n| apply | 立即 | 数组 |\n| bind | 返回新函数 | 逐个传入（支持柯里化） |",
+    "tags": ["call", "apply", "bind", "this"],
+    "source": "高频"
+  },
+  {
+    "id": "js-015",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "什么是深拷贝和浅拷贝？",
+    "answer": "## 深拷贝 vs 浅拷贝\n\n### 浅拷贝\n只复制对象的第一层，嵌套对象仍共享引用。\n\n```js\nconst obj = { a: 1, b: { c: 2 } };\n\n// 浅拷贝方法\nconst copy1 = Object.assign({}, obj);\nconst copy2 = { ...obj };\n\ncopy1.b.c = 99;\nconsole.log(obj.b.c); // 99（被影响了）\n```\n\n### 深拷贝\n递归复制所有层级，完全独立。\n\n```js\n// 方法1：JSON（有限制）\nconst deep1 = JSON.parse(JSON.stringify(obj));\n// 缺点：不支持函数、undefined、Symbol、循环引用、Date转字符串\n\n// 方法2：structuredClone（现代浏览器/Node.js 17+）\nconst deep2 = structuredClone(obj);\n// 支持 Date、RegExp、Map、Set、循环引用\n// 不支持函数、Symbol\n\n// 方法3：手写递归深拷贝\nfunction deepClone(obj, map = new WeakMap()) {\n  if (obj === null || typeof obj !== 'object') return obj;\n  if (map.has(obj)) return map.get(obj); // 处理循环引用\n\n  const clone = Array.isArray(obj) ? [] : {};\n  map.set(obj, clone);\n\n  for (const key of Reflect.ownKeys(obj)) {\n    clone[key] = deepClone(obj[key], map);\n  }\n  return clone;\n}\n```\n\n### 浅拷贝方法汇总\n- `Object.assign({}, obj)`\n- `{ ...obj }`（展开）\n- `Array.prototype.slice()`\n- `Array.from(arr)`",
+    "tags": ["深拷贝", "浅拷贝", "引用类型"],
+    "source": "高频"
+  },
+  {
+    "id": "js-016",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "new 操作符做了什么？",
+    "answer": "## new 操作符\n\n### 执行步骤\n1. 创建一个空对象 `{}`\n2. 将对象的 `[[Prototype]]` 指向构造函数的 `prototype`\n3. 将构造函数的 `this` 绑定到新对象并执行\n4. 若构造函数返回对象类型，则返回该对象；否则返回新创建的对象\n\n```js\nfunction Person(name, age) {\n  this.name = name;\n  this.age = age;\n}\n\nconst p = new Person('Alice', 25);\n// p.__proto__ === Person.prototype\n```\n\n### 手写 new\n```js\nfunction myNew(Constructor, ...args) {\n  // 1. 创建对象，绑定原型\n  const obj = Object.create(Constructor.prototype);\n\n  // 2. 执行构造函数\n  const result = Constructor.apply(obj, args);\n\n  // 3. 判断返回值\n  return result instanceof Object ? result : obj;\n}\n\nconst p = myNew(Person, 'Bob', 30);\nconsole.log(p.name); // 'Bob'\nconsole.log(p instanceof Person); // true\n```\n\n### 构造函数返回值的影响\n```js\nfunction Foo() {\n  this.name = 'foo';\n  return { name: 'bar' }; // 返回对象\n}\nconst f = new Foo();\nconsole.log(f.name); // 'bar'（使用返回的对象）\n\nfunction Bar() {\n  this.name = 'bar';\n  return 42; // 返回原始值，忽略\n}\nconst b = new Bar();\nconsole.log(b.name); // 'bar'（使用新创建的对象）\n```",
+    "tags": ["new", "构造函数", "原型"],
+    "source": "高频"
+  },
+  {
+    "id": "js-017",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "JavaScript 继承的方式有哪些？",
+    "answer": "## JavaScript 继承方式\n\n### 1. 原型链继承\n```js\nfunction Animal(name) { this.name = name; }\nAnimal.prototype.speak = function() { return this.name; };\n\nfunction Dog() {}\nDog.prototype = new Animal('Dog');\n// 问题：共享引用类型属性，无法传参\n```\n\n### 2. 构造函数继承\n```js\nfunction Dog(name) {\n  Animal.call(this, name); // 借用构造函数\n}\n// 问题：无法继承原型方法\n```\n\n### 3. 组合继承（最常用传统方式）\n```js\nfunction Dog(name) {\n  Animal.call(this, name);\n}\nDog.prototype = new Animal();\nDog.prototype.constructor = Dog;\n// 问题：父构造函数调用两次\n```\n\n### 4. 寄生组合继承（最优传统方式）\n```js\nfunction Dog(name) {\n  Animal.call(this, name);\n}\nDog.prototype = Object.create(Animal.prototype);\nDog.prototype.constructor = Dog;\n```\n\n### 5. ES6 Class 继承（推荐）\n```js\nclass Animal {\n  constructor(name) { this.name = name; }\n  speak() { return `${this.name} makes a sound.`; }\n}\n\nclass Dog extends Animal {\n  constructor(name) {\n    super(name); // 必须先调用 super\n  }\n  speak() {\n    return `${this.name} barks.`;\n  }\n}\n\nconst d = new Dog('Rex');\nd.speak(); // 'Rex barks.'\nd instanceof Dog;    // true\nd instanceof Animal; // true\n```",
+    "tags": ["继承", "原型链", "ES6", "Class"],
+    "source": "高频"
+  },
+  {
+    "id": "js-018",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "说说 Array 常用方法及区别",
+    "answer": "## Array 常用方法\n\n### 改变原数组\n```js\nconst arr = [1, 2, 3];\narr.push(4);            // 末尾添加，返回新长度\narr.pop();              // 末尾删除，返回删除元素\narr.unshift(0);         // 头部添加，返回新长度\narr.shift();            // 头部删除，返回删除元素\narr.splice(1, 1, 'x');  // 增删改\narr.sort((a, b) => a - b); // 排序（原地）\narr.reverse();          // 反转（原地）\n```\n\n### 不改变原数组（返回新值）\n```js\narr.slice(1, 3);         // 截取子数组\narr.concat([4, 5]);      // 合并数组\narr.map(x => x * 2);    // 映射\narr.filter(x => x > 1); // 过滤\narr.reduce((acc, x) => acc + x, 0); // 归并\narr.find(x => x > 1);   // 找第一个满足条件的元素\narr.findIndex(x => x > 1); // 找第一个满足条件的索引\narr.some(x => x > 2);   // 有一个满足则 true\narr.every(x => x > 0);  // 全部满足则 true\narr.includes(2);         // 是否包含\narr.flat(2);             // 扁平化（指定深度）\narr.flatMap(x => [x, x * 2]); // map + flat(1)\narr.join('-');           // 转字符串\n```\n\n### forEach vs map\n```js\n// forEach：无返回值，只遍历\narr.forEach(x => console.log(x));\n\n// map：返回新数组\nconst doubled = arr.map(x => x * 2);\n```\n\n### 查找方法对比\n| 方法 | 返回值 | 找不到 |\n|------|-------|-------|\n| indexOf | 索引 | -1 |\n| find | 元素 | undefined |\n| findIndex | 索引 | -1 |\n| includes | boolean | false |",
+    "tags": ["Array", "方法", "高阶函数"],
+    "source": "高频"
+  },
+  {
+    "id": "js-019",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "详解 Promise.all、Promise.race、Promise.allSettled、Promise.any 的区别",
+    "answer": "## Promise 静态方法对比\n\n### Promise.all\n- 全部 fulfilled 才 fulfilled，任一 rejected 立即 rejected\n- 返回所有结果的数组（顺序与输入一致）\n\n```js\nPromise.all([Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)])\n  .then(values => console.log(values)); // [1, 2, 3]\n\nPromise.all([Promise.resolve(1), Promise.reject('err')])\n  .catch(err => console.log(err)); // 'err'\n```\n\n### Promise.race\n- 第一个 settle（无论成败）的结果决定最终状态\n\n```js\n// 超时控制\nconst timeout = new Promise((_, reject) =>\n  setTimeout(() => reject(new Error('Timeout')), 3000)\n);\nPromise.race([fetchData(), timeout]);\n```\n\n### Promise.allSettled（ES2020）\n- 等待所有 Promise 完成，无论成败\n- 返回每个 Promise 的状态和值\n\n```js\nPromise.allSettled([\n  Promise.resolve(1),\n  Promise.reject('err'),\n  Promise.resolve(3)\n]).then(results => {\n  results.forEach(r => {\n    if (r.status === 'fulfilled') console.log(r.value);\n    else console.log(r.reason);\n  });\n});\n```\n\n### Promise.any（ES2021）\n- 任一 fulfilled 就 fulfilled\n- 全部 rejected 才 rejected（AggregateError）\n\n```js\nPromise.any([Promise.reject('a'), Promise.resolve('b'), Promise.resolve('c')])\n  .then(val => console.log(val)); // 'b'\n```\n\n### 对比表\n| 方法 | 成功条件 | 失败条件 |\n|------|---------|--------|\n| all | 全部成功 | 任一失败 |\n| race | 第一个settle | 第一个settle |\n| allSettled | 全部settle | 不会失败 |\n| any | 任一成功 | 全部失败 |",
+    "tags": ["Promise", "并发", "异步"],
+    "source": "高频"
+  },
+  {
+    "id": "js-020",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 JavaScript 的执行上下文和调用栈",
+    "answer": "## 执行上下文与调用栈\n\n### 执行上下文类型\n1. **全局执行上下文**：程序开始时创建，只有一个\n2. **函数执行上下文**：每次函数调用时创建\n3. **eval 执行上下文**（少用）\n\n### 执行上下文包含\n- **变量环境（Variable Environment）**：var 声明、函数声明\n- **词法环境（Lexical Environment）**：let、const、函数\n- **this 绑定**\n- **外部词法环境引用**（作用域链）\n\n### 创建阶段 vs 执行阶段\n```js\n// 创建阶段（变量提升发生在此时）\n// 1. 扫描代码，分配内存\n// 2. var 变量初始化为 undefined\n// 3. 函数声明完整存储\n// 4. let/const 进入 TDZ\n\nfunction foo() {\n  console.log(a); // undefined（创建阶段 a = undefined）\n  var a = 10;\n  console.log(a); // 10\n}\n```\n\n### 调用栈（Call Stack）\n```js\nfunction first() {\n  console.log('first start');\n  second();\n  console.log('first end');\n}\nfunction second() {\n  console.log('second');\n  third();\n}\nfunction third() {\n  console.log('third');\n}\n\nfirst();\n// 调用栈变化：\n// [global]\n// [global, first]\n// [global, first, second]\n// [global, first, second, third]\n// [global, first, second]（third 出栈）\n// [global, first]（second 出栈）\n// [global]（first 出栈）\n```\n\n### 栈溢出\n```js\nfunction infinite() { return infinite(); }\ninfinite(); // RangeError: Maximum call stack size exceeded\n```",
+    "tags": ["执行上下文", "调用栈", "作用域"],
+    "source": "高频"
+  },
+  {
+    "id": "js-021",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "实现一个简版 Promise，理解其内部原理",
+    "answer": "## 手写简版 Promise\n\n```js\nclass MyPromise {\n  constructor(executor) {\n    this.state = 'pending';\n    this.value = undefined;\n    this.reason = undefined;\n    this.onFulfilledCallbacks = [];\n    this.onRejectedCallbacks = [];\n\n    const resolve = (value) => {\n      if (this.state !== 'pending') return;\n      this.state = 'fulfilled';\n      this.value = value;\n      this.onFulfilledCallbacks.forEach(fn => fn(value));\n    };\n\n    const reject = (reason) => {\n      if (this.state !== 'pending') return;\n      this.state = 'rejected';\n      this.reason = reason;\n      this.onRejectedCallbacks.forEach(fn => fn(reason));\n    };\n\n    try {\n      executor(resolve, reject);\n    } catch (e) {\n      reject(e);\n    }\n  }\n\n  then(onFulfilled, onRejected) {\n    onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : v => v;\n    onRejected = typeof onRejected === 'function' ? onRejected : e => { throw e; };\n\n    return new MyPromise((resolve, reject) => {\n      const handle = (fn, value) => {\n        try {\n          const result = fn(value);\n          if (result instanceof MyPromise) {\n            result.then(resolve, reject);\n          } else {\n            resolve(result);\n          }\n        } catch (e) {\n          reject(e);\n        }\n      };\n\n      if (this.state === 'fulfilled') {\n        setTimeout(() => handle(onFulfilled, this.value));\n      } else if (this.state === 'rejected') {\n        setTimeout(() => handle(onRejected, this.reason));\n      } else {\n        this.onFulfilledCallbacks.push(v => setTimeout(() => handle(onFulfilled, v)));\n        this.onRejectedCallbacks.push(r => setTimeout(() => handle(onRejected, r)));\n      }\n    });\n  }\n\n  catch(onRejected) {\n    return this.then(null, onRejected);\n  }\n\n  finally(onFinally) {\n    return this.then(\n      value => MyPromise.resolve(onFinally()).then(() => value),\n      reason => MyPromise.resolve(onFinally()).then(() => { throw reason; })\n    );\n  }\n\n  static resolve(value) {\n    return new MyPromise(resolve => resolve(value));\n  }\n\n  static reject(reason) {\n    return new MyPromise((_, reject) => reject(reason));\n  }\n}\n```\n\n### 关键点\n- 状态只能从 pending → fulfilled 或 pending → rejected，不可逆\n- `.then()` 返回新 Promise（支持链式调用）\n- 回调需要异步执行（setTimeout 模拟微任务）\n- 需要处理 then 回调中返回 Promise 的情况",
+    "tags": ["Promise", "手写", "原理"],
+    "source": "高频"
+  },
+  {
+    "id": "js-022",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "Generator 生成器的原理和应用",
+    "answer": "## Generator 生成器\n\n### 基本语法\n```js\nfunction* generator() {\n  console.log('start');\n  const x = yield 1;  // 暂停，返回 1\n  console.log('x =', x);\n  const y = yield 2;  // 暂停，返回 2\n  return x + y;\n}\n\nconst gen = generator();\nconsole.log(gen.next());    // start → { value: 1, done: false }\nconsole.log(gen.next(10));  // x = 10 → { value: 2, done: false }\nconsole.log(gen.next(20));  // { value: 30, done: true }\n```\n\n### 实现异步控制流\n```js\nfunction run(generator) {\n  const gen = generator();\n  function step(value) {\n    const { value: promise, done } = gen.next(value);\n    if (!done) {\n      Promise.resolve(promise).then(step);\n    }\n  }\n  step();\n}\n\nrun(function* () {\n  const user = yield fetch('/api/user').then(r => r.json());\n  const posts = yield fetch(`/api/posts/${user.id}`).then(r => r.json());\n  console.log(posts);\n});\n// 这就是 async/await 的底层原理！\n```\n\n### 无限序列\n```js\nfunction* range(start = 0, step = 1) {\n  while (true) {\n    yield start;\n    start += step;\n  }\n}\n\nconst nums = range(0, 2);\nconsole.log(nums.next().value); // 0\nconsole.log(nums.next().value); // 2\nconsole.log(nums.next().value); // 4\n```\n\n### 与 async/await 的关系\n`async/await` 本质上是 Generator + 自动执行器（Promise）的语法糖。",
+    "tags": ["Generator", "迭代器", "异步", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-023",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "详解 Proxy 和 Reflect",
+    "answer": "## Proxy 与 Reflect\n\n### Proxy\n用于创建对象的代理，拦截对象的基本操作。\n\n```js\nconst handler = {\n  get(target, prop, receiver) {\n    console.log(`Getting ${prop}`);\n    return Reflect.get(target, prop, receiver);\n  },\n  set(target, prop, value, receiver) {\n    if (typeof value !== 'number') throw new TypeError('Must be a number');\n    return Reflect.set(target, prop, value, receiver);\n  },\n  deleteProperty(target, prop) {\n    console.log(`Deleting ${prop}`);\n    return Reflect.deleteProperty(target, prop);\n  }\n};\n\nconst obj = new Proxy({ x: 1 }, handler);\nobj.x;       // Getting x → 1\nobj.y = 'a'; // TypeError\nobj.y = 2;   // OK\n```\n\n### 实现数据响应式（Vue3 原理）\n```js\nfunction reactive(obj) {\n  return new Proxy(obj, {\n    get(target, key) {\n      track(target, key); // 依赖收集\n      const value = Reflect.get(target, key);\n      return typeof value === 'object' && value !== null\n        ? reactive(value)\n        : value;\n    },\n    set(target, key, value) {\n      const result = Reflect.set(target, key, value);\n      trigger(target, key); // 触发更新\n      return result;\n    }\n  });\n}\n```\n\n### Reflect 的作用\n- 提供与 Proxy 陷阱对应的方法\n- 确保 `this` 正确绑定（使用 `receiver`）\n- 更规范的对象操作 API，返回值更可预期\n\n### 常见拦截陷阱\n`get`、`set`、`has`、`apply`、`construct`、`deleteProperty`、`ownKeys`",
+    "tags": ["Proxy", "Reflect", "ES6", "响应式"],
+    "source": "高频"
+  },
+  {
+    "id": "js-024",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "WeakMap 和 Map 的区别及应用场景",
+    "answer": "## Map vs WeakMap\n\n### Map\n- 键可以是任意类型\n- 可迭代，有 `size` 属性\n- 强引用：即使键对象无其他引用，也不会被 GC\n\n```js\nconst map = new Map();\nconst key = { id: 1 };\nmap.set(key, 'value');\nmap.size; // 1\n```\n\n### WeakMap\n- 键**必须是对象**\n- **不可迭代**，没有 `size`\n- **弱引用**：如果键对象没有其他引用，会被 GC 回收，对应条目自动删除\n- 只有 `get`、`set`、`has`、`delete` 方法\n\n```js\nlet obj = { name: 'Alice' };\nconst weakMap = new WeakMap();\nweakMap.set(obj, { data: 'private data' });\n\nobj = null; // obj 可被 GC 回收，WeakMap 中的条目也会消失\n```\n\n### 应用场景\n\n**1. 私有数据存储**\n```js\nconst privateData = new WeakMap();\nclass Person {\n  constructor(name) {\n    privateData.set(this, { name });\n  }\n  getName() {\n    return privateData.get(this).name;\n  }\n}\n```\n\n**2. 缓存计算结果（不影响 GC）**\n```js\nconst cache = new WeakMap();\nfunction process(obj) {\n  if (cache.has(obj)) return cache.get(obj);\n  const result = expensiveCompute(obj);\n  cache.set(obj, result);\n  return result;\n}\n```\n\n**3. DOM 节点关联数据**\n```js\nconst nodeData = new WeakMap();\nnodeData.set(domElement, { clicks: 0 });\n// 节点从 DOM 移除后，数据自动 GC\n```",
+    "tags": ["WeakMap", "Map", "内存", "GC"],
+    "source": "高频"
+  },
+  {
+    "id": "js-025",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 Symbol 的用途",
+    "answer": "## Symbol\n\n### 基本特性\n- ES6 引入的原始类型，每个 Symbol 值都是唯一的\n- 不能用 `new` 创建\n\n```js\nconst s1 = Symbol('description');\nconst s2 = Symbol('description');\ns1 === s2; // false（唯一）\ntypeof s1; // 'symbol'\n```\n\n### 应用场景\n\n**1. 唯一属性键（避免命名冲突）**\n```js\nconst ID = Symbol('id');\nconst obj = { [ID]: 123, name: 'test' };\nobj[ID]; // 123\n// Symbol 属性不会出现在 for...in、Object.keys() 中\n// 但可以通过 Object.getOwnPropertySymbols() 获取\n```\n\n**2. Well-Known Symbols（内置协议）**\n```js\n// Symbol.iterator：使对象可迭代\nclass Range {\n  constructor(start, end) { this.start = start; this.end = end; }\n  [Symbol.iterator]() {\n    let current = this.start;\n    const end = this.end;\n    return {\n      next() {\n        return current <= end\n          ? { value: current++, done: false }\n          : { done: true, value: undefined };\n      }\n    };\n  }\n}\nfor (const n of new Range(1, 3)) console.log(n); // 1 2 3\n\n// Symbol.toPrimitive：自定义类型转换\nconst obj2 = {\n  [Symbol.toPrimitive](hint) {\n    if (hint === 'number') return 42;\n    if (hint === 'string') return 'hello';\n    return true;\n  }\n};\n+obj2;     // 42\n`${obj2}`; // 'hello'\n```\n\n**3. Symbol.for / Symbol.keyFor（全局注册）**\n```js\nconst s1 = Symbol.for('shared');\nconst s2 = Symbol.for('shared');\ns1 === s2; // true（全局注册表中共享）\nSymbol.keyFor(s1); // 'shared'\n```",
+    "tags": ["Symbol", "ES6", "唯一性"],
+    "source": "高频"
+  },
+  {
+    "id": "js-026",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "描述 JavaScript 中的迭代器协议和可迭代协议",
+    "answer": "## 迭代器协议 & 可迭代协议\n\n### 迭代器协议\n实现了 `next()` 方法的对象，`next()` 返回 `{ value, done }` 格式。\n\n```js\nconst iterator = {\n  data: [1, 2, 3],\n  index: 0,\n  next() {\n    if (this.index < this.data.length) {\n      return { value: this.data[this.index++], done: false };\n    }\n    return { value: undefined, done: true };\n  }\n};\n\niterator.next(); // { value: 1, done: false }\niterator.next(); // { value: 2, done: false }\niterator.next(); // { value: 3, done: false }\niterator.next(); // { value: undefined, done: true }\n```\n\n### 可迭代协议\n对象实现了 `[Symbol.iterator]()` 方法，返回迭代器。\n\n```js\nconst range = {\n  from: 1,\n  to: 5,\n  [Symbol.iterator]() {\n    let current = this.from;\n    const last = this.to;\n    return {\n      next() {\n        return current <= last\n          ? { value: current++, done: false }\n          : { done: true, value: undefined };\n      }\n    };\n  }\n};\n\nfor (const n of range) console.log(n); // 1 2 3 4 5\n[...range]; // [1, 2, 3, 4, 5]\n```\n\n### 内置可迭代对象\nArray、String、Map、Set、TypedArray、arguments、NodeList、Generator 对象\n\n### 与 for...of 的关系\n`for...of` 语句通过调用 `[Symbol.iterator]()` 获取迭代器，然后循环调用 `next()`。",
+    "tags": ["迭代器", "Symbol.iterator", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-027",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "箭头函数和普通函数的区别",
+    "answer": "## 箭头函数 vs 普通函数\n\n### 1. this 绑定\n```js\n// 普通函数：this 由调用方式决定\nconst obj = {\n  name: 'obj',\n  regular() { console.log(this.name); },  // 'obj'\n  arrow: () => console.log(this.name),    // undefined（全局 this）\n};\n\n// 箭头函数：继承外层词法 this\nfunction Timer() {\n  this.count = 0;\n  setInterval(() => { this.count++; }, 1000); // this 是 Timer 实例 ✅\n}\n```\n\n### 2. arguments 对象\n```js\nfunction regular() {\n  console.log(arguments); // Arguments 对象 ✅\n}\n\nconst arrow = (...args) => {\n  console.log(args); // 需用剩余参数代替\n};\n```\n\n### 3. 不能作为构造函数\n```js\nconst Foo = () => {};\nnew Foo(); // TypeError: Foo is not a constructor\n```\n\n### 4. 没有 prototype\n```js\nconst arrow = () => {};\narrow.prototype; // undefined\n```\n\n### 5. 不能用 call/apply/bind 改变 this\n```js\nconst arrow = () => this;\narrow.call({ name: 'test' }); // 仍然是外层 this\n```\n\n### 6. 不能用作 Generator\n```js\n// const gen = *() => {}; // SyntaxError\n```\n\n### 7. 没有 super 和 new.target\n\n### 适用场景\n- 需要保留外层 `this` 的回调（事件、定时器、Promise）\n- 简短的函数表达式\n- 不适合作为对象方法、构造函数、Generator",
+    "tags": ["箭头函数", "this", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-028",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "Object.defineProperty 和 Proxy 的区别（Vue2 vs Vue3 响应式原理）",
+    "answer": "## Object.defineProperty vs Proxy\n\n### Object.defineProperty（Vue2）\n```js\nfunction defineReactive(obj, key, val) {\n  Object.defineProperty(obj, key, {\n    get() {\n      console.log(`get ${key}`);\n      return val;\n    },\n    set(newVal) {\n      if (newVal === val) return;\n      val = newVal;\n      // 触发视图更新\n    }\n  });\n}\n```\n\n**限制：**\n1. 只能劫持已存在的属性，无法检测属性的**新增**和**删除**\n2. 无法直接劫持数组下标变化（需要重写数组方法）\n3. 深层对象需要递归遍历所有属性（初始化性能差）\n\n```js\n// Vue2 的问题\nthis.obj.newProp = 'new'; // 不会触发响应（需 Vue.set）\nthis.arr[0] = 'new';      // 不会触发响应\n```\n\n### Proxy（Vue3）\n```js\nfunction reactive(obj) {\n  return new Proxy(obj, {\n    get(target, key, receiver) {\n      track(target, key); // 依赖追踪\n      const res = Reflect.get(target, key, receiver);\n      return isObject(res) ? reactive(res) : res; // 懒递归\n    },\n    set(target, key, val, receiver) {\n      const result = Reflect.set(target, key, val, receiver);\n      trigger(target, key);\n      return result;\n    },\n    deleteProperty(target, key) {\n      const result = Reflect.deleteProperty(target, key);\n      trigger(target, key);\n      return result;\n    }\n  });\n}\n```\n\n**优势：**\n1. 可以检测属性新增、删除\n2. 可以直接劫持数组下标\n3. 懒递归（按需代理）性能更好\n4. 支持 Map、Set、WeakMap 等\n\n| 特性 | defineProperty | Proxy |\n|-----|---------------|-------|\n| 新增属性 | ❌ | ✅ |\n| 删除属性 | ❌ | ✅ |\n| 数组下标 | ❌ | ✅ |\n| 初始化性能 | 差（全量递归） | 好（懒代理） |\n| 兼容性 | IE8+ | 不支持 IE |",
+    "tags": ["Proxy", "Vue", "响应式", "Object.defineProperty"],
+    "source": "高频"
+  },
+  {
+    "id": "js-029",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说防抖和节流的原理与区别",
+    "answer": "## 防抖（Debounce）和节流（Throttle）\n\n### 防抖\n在事件被触发后延迟执行，如果在延迟期间再次触发，则重新计时。**只执行最后一次。**\n\n```js\nfunction debounce(fn, delay) {\n  let timer = null;\n  return function(...args) {\n    clearTimeout(timer);\n    timer = setTimeout(() => {\n      fn.apply(this, args);\n    }, delay);\n  };\n}\n\n// 使用场景：搜索框输入（停止输入后才搜索）\nconst handleSearch = debounce((query) => {\n  fetch(`/api/search?q=${query}`);\n}, 300);\n```\n\n### 节流\n在单位时间内，只执行一次。**稀释执行频率。**\n\n```js\nfunction throttle(fn, interval) {\n  let lastTime = 0;\n  return function(...args) {\n    const now = Date.now();\n    if (now - lastTime >= interval) {\n      lastTime = now;\n      fn.apply(this, args);\n    }\n  };\n}\n\n// 使用场景：滚动监听、窗口 resize\nconst handleScroll = throttle(() => {\n  console.log('scroll event');\n}, 200);\n```\n\n### 区别\n| | 防抖 | 节流 |\n|--|------|------|\n| 执行时机 | 停止触发后 | 固定时间间隔 |\n| 执行次数 | 1次（最后） | n次（稀释） |\n| 场景 | 搜索、表单验证 | 滚动、resize、mousemove |\n\n### 带立即执行的防抖\n```js\nfunction debounce(fn, delay, immediate = false) {\n  let timer = null;\n  return function(...args) {\n    if (immediate && !timer) fn.apply(this, args);\n    clearTimeout(timer);\n    timer = setTimeout(() => {\n      timer = null;\n      if (!immediate) fn.apply(this, args);\n    }, delay);\n  };\n}\n```",
+    "tags": ["防抖", "节流", "性能"],
+    "source": "高频"
+  },
+  {
+    "id": "js-030",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 for...in 和 for...of 的区别",
+    "answer": "## for...in vs for...of\n\n### for...in\n- 遍历对象的**可枚举属性键**（包括原型链上的）\n- 主要用于普通对象\n\n```js\nconst obj = { a: 1, b: 2, c: 3 };\nfor (const key in obj) {\n  console.log(key); // 'a' 'b' 'c'\n}\n\n// 陷阱：会遍历原型链属性\nfunction Foo() { this.x = 1; }\nFoo.prototype.y = 2;\nconst foo = new Foo();\nfor (const key in foo) console.log(key); // 'x' 'y'\n// 使用 hasOwnProperty 过滤\nfor (const key in foo) {\n  if (Object.hasOwn(foo, key)) console.log(key); // 'x'\n}\n\n// 不推荐用于数组（会遍历额外属性）\nconst arr = [10, 20, 30];\narr.extra = 'oops';\nfor (const key in arr) console.log(key); // '0' '1' '2' 'extra'\n```\n\n### for...of\n- 遍历**可迭代对象**的值\n- 不能直接用于普通对象（需实现 `[Symbol.iterator]`）\n\n```js\n// 数组\nfor (const val of [1, 2, 3]) console.log(val); // 1 2 3\n\n// 字符串\nfor (const char of 'hello') console.log(char);\n\n// Map\nconst map = new Map([['a', 1], ['b', 2]]);\nfor (const [key, val] of map) console.log(key, val);\n\n// Set\nfor (const val of new Set([1, 2, 3])) console.log(val);\n\n// 遍历对象用 Object.entries\nfor (const [key, val] of Object.entries(obj)) console.log(key, val);\n```\n\n### 总结\n| | for...in | for...of |\n|--|---------|----------|\n| 遍历内容 | 属性键 | 属性值 |\n| 适用 | 普通对象 | 可迭代对象 |\n| 原型链 | 包含 | 不涉及 |",
+    "tags": ["for...in", "for...of", "迭代"],
+    "source": "高频"
+  },
+  {
+    "id": "js-031",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "详解 JavaScript 模块化：CommonJS vs ES Module",
+    "answer": "## CommonJS vs ES Module\n\n### CommonJS（Node.js）\n```js\n// 导出\nmodule.exports = { foo: 1 };\nexports.bar = 2;\n\n// 导入\nconst { foo } = require('./module');\n```\n\n**特点：**\n- 同步加载（适合服务端）\n- 运行时解析（动态）\n- 导出的是值的**拷贝**\n- 有缓存：同一模块只执行一次\n\n### ES Module\n```js\n// 导出\nexport const foo = 1;\nexport function bar() {}\nexport default class MyClass {}\n\n// 导入\nimport MyClass, { foo, bar } from './module.js';\nimport * as mod from './module.js';\nimport('./module.js').then(mod => {}); // 动态导入\n```\n\n**特点：**\n- 异步加载（适合浏览器）\n- 编译时静态解析（支持 Tree Shaking）\n- 导出的是值的**实时绑定**（live binding）\n- 严格模式，支持顶层 `await`\n\n### 关键区别：Live Binding\n```js\n// CJS：值的拷贝\n// counter.js\nlet count = 0;\nmodule.exports = { count, increment() { count++; } };\n// main.js\nconst { count, increment } = require('./counter');\nincrement();\nconsole.log(count); // 0（拷贝的是当时的值）\n\n// ESM：实时绑定\n// counter.mjs\nexport let count = 0;\nexport function increment() { count++; }\n// main.mjs\nimport { count, increment } from './counter.mjs';\nincrement();\nconsole.log(count); // 1（实时绑定）\n```\n\n| 特性 | CommonJS | ES Module |\n|-----|---------|----------|\n| 加载 | 同步 | 异步 |\n| 解析时机 | 运行时 | 编译时 |\n| 导出 | 值拷贝 | 实时绑定 |\n| Tree Shaking | ❌ | ✅ |",
+    "tags": ["模块化", "CommonJS", "ESM", "Tree Shaking"],
+    "source": "高频"
+  },
+  {
+    "id": "js-032",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "什么是柯里化（Currying）？有什么用途？",
+    "answer": "## 函数柯里化\n\n### 定义\n柯里化是将接受多个参数的函数转化为接受单个参数的函数序列的技术。\n\n```js\n// 普通函数\nconst add = (a, b, c) => a + b + c;\nadd(1, 2, 3); // 6\n\n// 柯里化后\nconst curriedAdd = a => b => c => a + b + c;\ncurriedAdd(1)(2)(3); // 6\n\n// 可以部分应用\nconst add1 = curriedAdd(1);\nadd1(2)(3); // 6\n```\n\n### 通用柯里化实现\n```js\nfunction curry(fn) {\n  return function curried(...args) {\n    if (args.length >= fn.length) {\n      return fn.apply(this, args);\n    }\n    return function(...moreArgs) {\n      return curried.apply(this, args.concat(moreArgs));\n    };\n  };\n}\n\nconst curriedAdd = curry((a, b, c) => a + b + c);\ncurriedAdd(1)(2)(3);   // 6\ncurriedAdd(1, 2)(3);   // 6\ncurriedAdd(1, 2, 3);   // 6\n```\n\n### 应用场景\n\n**1. 参数复用**\n```js\nconst isType = curry((type, val) => typeof val === type);\nconst isString = isType('string');\nconst isNumber = isType('number');\n['a', 1, 'b', 2].filter(isString); // ['a', 'b']\n```\n\n**2. 延迟执行**\n```js\nconst log = curry((level, message) =>\n  console.log(`[${level}] ${message}`)\n);\nconst warn = log('WARN');\nwarn('Something is wrong'); // [WARN] Something is wrong\n```\n\n**3. 函数组合**\n```js\nconst compose = (...fns) => x => fns.reduceRight((v, f) => f(v), x);\nconst transform = compose(x => x * 2, x => x + 1, x => x * 3);\ntransform(2); // (2*3+1)*2 = 14\n```",
+    "tags": ["柯里化", "函数式编程", "高阶函数"],
+    "source": "高频"
+  },
+  {
+    "id": "js-033",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 Object.create()、Object.assign()、Object.freeze() 的用途",
+    "answer": "## Object 常用静态方法\n\n### Object.create(proto)\n以指定对象为原型创建新对象。\n\n```js\n// 创建原型为 null 的纯净对象（无 toString 等方法）\nconst pure = Object.create(null);\n\n// 原型继承\nconst animal = {\n  speak() { return `${this.name} makes a sound`; }\n};\nconst dog = Object.create(animal);\ndog.name = 'Rex';\ndog.speak(); // 'Rex makes a sound'\n\n// 寄生组合继承的关键\nChild.prototype = Object.create(Parent.prototype);\nChild.prototype.constructor = Child;\n```\n\n### Object.assign(target, ...sources)\n浅拷贝，将源对象的可枚举自有属性复制到目标对象。\n\n```js\nconst result = Object.assign({}, { a: 1 }, { b: 2 }, { a: 3 });\n// { a: 3, b: 2 }（后面的覆盖前面的）\n\n// 注意：修改了 target！\nconst target = { a: 1 };\nObject.assign(target, { b: 2 }); // target = { a: 1, b: 2 }\n```\n\n### Object.freeze(obj)\n冻结对象，使其不可修改（浅冻结）。\n\n```js\nconst config = Object.freeze({ timeout: 5000 });\nconfig.timeout = 10000; // 严格模式报错，否则静默失败\nconfig.timeout; // 5000\n\n// 浅冻结：嵌套对象仍可修改\nconst obj = Object.freeze({ nested: { a: 1 } });\nobj.nested.a = 2; // ✅ 可以修改！\n\n// 深冻结\nfunction deepFreeze(obj) {\n  Object.keys(obj).forEach(key => {\n    if (typeof obj[key] === 'object' && obj[key] !== null) {\n      deepFreeze(obj[key]);\n    }\n  });\n  return Object.freeze(obj);\n}\n```\n\n### 其他常用方法\n```js\nObject.keys(obj)    // 自有可枚举属性名数组\nObject.values(obj)  // 自有可枚举属性值数组\nObject.entries(obj) // 自有可枚举 [key, value] 对数组\nObject.fromEntries(entries) // entries 转对象\nObject.seal(obj)    // 封闭对象（不能增删属性，但可修改现有属性）\nObject.hasOwn(obj, key) // 替代 hasOwnProperty\n```",
+    "tags": ["Object", "原型", "不可变"],
+    "source": "高频"
+  },
+  {
+    "id": "js-034",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "JavaScript 中如何实现私有属性/方法？",
+    "answer": "## JavaScript 私有属性/方法\n\n### 1. 命名约定（非真正私有）\n```js\nclass Person {\n  constructor(name) {\n    this._name = name; // 约定 _ 前缀为私有，但仍可访问\n  }\n}\n```\n\n### 2. 闭包（ES5 时代）\n```js\nfunction createPerson(name) {\n  let _name = name; // 真正私有\n  return {\n    getName() { return _name; },\n    setName(val) { _name = val; }\n  };\n}\n```\n\n### 3. WeakMap\n```js\nconst _private = new WeakMap();\nclass Person {\n  constructor(name, age) {\n    _private.set(this, { name, age });\n  }\n  getName() { return _private.get(this).name; }\n}\n```\n\n### 4. 类私有字段（ES2022，真正私有）\n```js\nclass Person {\n  #name;          // 私有字段\n  #age;\n\n  constructor(name, age) {\n    this.#name = name;\n    this.#age = age;\n  }\n\n  #validateAge(age) { // 私有方法\n    return age > 0 && age < 150;\n  }\n\n  getInfo() {\n    return `${this.#name}, ${this.#age}`;\n  }\n}\n\nconst p = new Person('Alice', 25);\np.getInfo();  // 'Alice, 25'\np.#name;      // SyntaxError（编译时报错，真正私有）\np['#name'];   // undefined（不是同一个东西）\n```\n\n### 推荐\n现代项目使用 `#` 私有字段，它是真正的私有（不能通过任何方式从类外部访问）。\n\n### 私有字段的特殊用法\n```js\nclass MyClass {\n  static #instances = 0; // 静态私有字段\n  constructor() { MyClass.#instances++; }\n  static getCount() { return MyClass.#instances; }\n}\n```",
+    "tags": ["私有属性", "ES2022", "封装"],
+    "source": "高频"
+  },
+  {
+    "id": "js-035",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 Set 和 Map 数据结构的用法",
+    "answer": "## Set 和 Map\n\n### Set\n存储唯一值的集合，不允许重复。\n\n```js\nconst set = new Set([1, 2, 3, 2, 1]);\nset.size; // 3\n\nset.add(4);    // 添加\nset.has(2);    // true\nset.delete(1); // 删除\nset.clear();   // 清空\n\n// 迭代\nfor (const val of set) console.log(val);\n[...set]; // 转数组\n\n// 常见用法：数组去重\nconst unique = [...new Set([1, 2, 2, 3, 3])];\n\n// 集合运算\nconst a = new Set([1, 2, 3]);\nconst b = new Set([2, 3, 4]);\nconst union = new Set([...a, ...b]);                        // 并集 {1,2,3,4}\nconst intersection = new Set([...a].filter(x => b.has(x))); // 交集 {2,3}\nconst difference = new Set([...a].filter(x => !b.has(x)));  // 差集 {1}\n```\n\n### Map\n键值对集合，键可以是任意类型。\n\n```js\nconst map = new Map();\nmap.set('key', 'value');\nmap.set(42, 'number key');\nmap.set({ id: 1 }, 'object key');\n\nmap.get('key'); // 'value'\nmap.has(42);    // true\nmap.size;       // 条目数\n\n// 迭代\nfor (const [key, val] of map) console.log(key, val);\n\n// 从数组创建\nconst m = new Map([['a', 1], ['b', 2]]);\n```\n\n### Map vs Object\n| | Map | Object |\n|--|-----|-------|\n| 键类型 | 任意 | string/Symbol |\n| 大小 | .size | Object.keys().length |\n| 迭代 | 直接可迭代 | 需转换 |\n| 性能 | 频繁增删更优 | 一般用途 |",
+    "tags": ["Set", "Map", "数据结构", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-036",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "解释可选链（?.）和空值合并（??）运算符",
+    "answer": "## 可选链和空值合并\n\n### 可选链（?.）—— ES2020\n安全地访问可能为 null/undefined 的对象属性，避免抛出错误。\n\n```js\nconst user = null;\n\n// 之前的写法\nconst city = user && user.address && user.address.city;\n\n// 使用可选链\nconst city2 = user?.address?.city; // undefined（不报错）\n\n// 用于方法调用\nuser?.greet();   // undefined\n\n// 用于数组下标\nconst arr = null;\narr?.[0]; // undefined\n\n// 用于函数调用\nconst fn = null;\nfn?.(); // undefined\n\n// 实际应用\nconst street = response?.data?.user?.address?.street;\n```\n\n### 空值合并（??）—— ES2020\n当左侧值为 `null` 或 `undefined` 时，返回右侧值。\n\n```js\n// || 的问题（包含所有假值）\n0 || 'default';    // 'default'（0 是假值）\n'' || 'default';   // 'default'（空字符串是假值）\n\n// ?? 只处理 null 和 undefined\n0 ?? 'default';    // 0（正确！0 不是 null/undefined）\n'' ?? 'default';   // ''（正确！）\nnull ?? 'default'; // 'default'\nundefined ?? 'default'; // 'default'\n\n// 实际场景\nconst config = { timeout: 0, retries: null };\nconst timeout = config.timeout ?? 5000;  // 0（正确）\nconst retries = config.retries ?? 3;     // 3\n```\n\n### 逻辑赋值运算符（ES2021）\n```js\nlet a = null;\na ??= 'default'; // a 为 null/undefined 才赋值\nconsole.log(a);  // 'default'\n\nlet b = 0;\nb ||= 'fallback'; // b 为假值才赋值，b = 'fallback'\n\nlet c = 1;\nc &&= 2; // c 为真值才赋值，c = 2\n```",
+    "tags": ["可选链", "空值合并", "ES2020"],
+    "source": "高频"
+  },
+  {
+    "id": "js-037",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "JavaScript 中的错误类型和错误处理最佳实践",
+    "answer": "## JavaScript 错误处理\n\n### 内置错误类型\n```js\nSyntaxError    // 语法错误（解析时）\nReferenceError // 引用未声明的变量\nTypeError      // 类型操作错误（null.property）\nRangeError     // 数值超出范围（new Array(-1)）\nURIError       // URI 编解码错误\nEvalError      // eval 相关（少见）\n```\n\n### try/catch/finally\n```js\nfunction divide(a, b) {\n  if (b === 0) throw new RangeError('Division by zero');\n  return a / b;\n}\n\ntry {\n  const result = divide(10, 0);\n} catch (err) {\n  if (err instanceof RangeError) {\n    console.error('Range error:', err.message);\n  } else {\n    throw err; // 重新抛出未知错误\n  }\n} finally {\n  console.log('always runs'); // 清理操作\n}\n```\n\n### 自定义错误类\n```js\nclass AppError extends Error {\n  constructor(message, code, statusCode) {\n    super(message);\n    this.name = 'AppError';\n    this.code = code;\n    this.statusCode = statusCode;\n    Object.setPrototypeOf(this, AppError.prototype); // 修复 TS instanceof\n  }\n}\n\nclass NetworkError extends AppError {\n  constructor(message) {\n    super(message, 'NETWORK_ERROR', 503);\n    this.name = 'NetworkError';\n  }\n}\n\ntry {\n  throw new NetworkError('Service unavailable');\n} catch (e) {\n  console.log(e instanceof NetworkError); // true\n  console.log(e instanceof AppError);     // true\n  console.log(e instanceof Error);        // true\n}\n```\n\n### 异步错误处理\n```js\n// async/await\nasync function load() {\n  try {\n    const data = await fetch('/api');\n  } catch (err) {\n    handleError(err);\n  }\n}\n\n// 全局未捕获错误\nwindow.addEventListener('unhandledrejection', e => {\n  console.error('Unhandled promise rejection:', e.reason);\n  e.preventDefault();\n});\nwindow.onerror = (msg, url, line, col, err) => {\n  reportError(err);\n};\n```",
+    "tags": ["错误处理", "Error", "try/catch"],
+    "source": "高频"
+  },
+  {
+    "id": "js-038",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 requestAnimationFrame 和 setTimeout 的区别",
+    "answer": "## requestAnimationFrame vs setTimeout\n\n### setTimeout 做动画的问题\n```js\n// 每隔 16ms 执行一次（模拟 60fps）\nsetInterval(() => updateAnimation(), 16);\n```\n\n- 时间不精确（受事件循环影响，可能延迟）\n- 不管浏览器是否在渲染，都会执行\n- 可能导致掉帧或过度渲染\n\n### requestAnimationFrame（rAF）\n```js\nlet start = null;\n\nfunction animate(timestamp) {\n  if (!start) start = timestamp;\n  const progress = timestamp - start;\n\n  element.style.left = `${Math.min(progress / 10, 200)}px`;\n\n  if (progress < 2000) {\n    requestAnimationFrame(animate);\n  }\n}\n\nrequestAnimationFrame(animate);\n\n// 取消\nconst rafId = requestAnimationFrame(animate);\ncancelAnimationFrame(rafId);\n```\n\n**优势：**\n- 与浏览器刷新率同步（通常 60fps = 16.67ms）\n- 页面不可见时自动暂停（节省资源）\n- 回调在每一帧绘制前执行，时机最佳\n- 高分辨率时间戳（timestamp 参数）\n\n### 使用场景\n- `rAF`：动画、Canvas 绘制、需要与渲染同步的操作\n- `setTimeout`：延时执行、非动画相关定时任务\n\n### 高性能动画模板\n```js\nfunction createAnimation(callback) {\n  let raf;\n  let running = false;\n\n  const step = (timestamp) => {\n    if (!running) return;\n    callback(timestamp);\n    raf = requestAnimationFrame(step);\n  };\n\n  return {\n    start() { running = true; raf = requestAnimationFrame(step); },\n    stop() { running = false; cancelAnimationFrame(raf); }\n  };\n}\n```",
+    "tags": ["requestAnimationFrame", "动画", "性能"],
+    "source": "高频"
+  },
+  {
+    "id": "js-039",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "ES2022+ 有哪些新特性？",
+    "answer": "## ES2022+ 新特性\n\n### ES2022\n\n**1. 类私有字段/方法（#）**\n```js\nclass Counter {\n  #count = 0;\n  static #instances = 0;\n  #increment() { this.#count++; }\n  click() { this.#increment(); return this.#count; }\n}\n```\n\n**2. 顶层 await（ES Module 中）**\n```js\nconst data = await fetch('/api').then(r => r.json());\nexport { data };\n```\n\n**3. Array.prototype.at()**\n```js\n[1, 2, 3].at(-1);  // 3（支持负索引）\n'hello'.at(-1);    // 'o'\n```\n\n**4. Object.hasOwn()**\n```js\nObject.hasOwn({ a: 1 }, 'a'); // true（替代 hasOwnProperty）\n```\n\n**5. Error.cause**\n```js\nthrow new Error('High-level error', { cause: originalError });\n```\n\n### ES2023\n\n**不可变数组方法（不修改原数组）**\n```js\nconst arr = [3, 1, 2];\narr.toSorted();        // [1, 2, 3]（不修改原数组）\narr.toReversed();      // [2, 1, 3]\narr.toSpliced(1, 1, 4); // [3, 4, 2]\narr.with(0, 99);       // [99, 1, 2]\n\n[1, 2, 3].findLast(x => x < 3);      // 2\n[1, 2, 3].findLastIndex(x => x < 3); // 1\n```\n\n### ES2024\n\n**Promise.withResolvers()**\n```js\nconst { promise, resolve, reject } = Promise.withResolvers();\nsetTimeout(() => resolve('done'), 1000);\nawait promise;\n```\n\n**Object.groupBy / Map.groupBy**\n```js\nconst items = [{ type: 'a', val: 1 }, { type: 'b', val: 2 }, { type: 'a', val: 3 }];\nconst grouped = Object.groupBy(items, item => item.type);\n// { a: [...], b: [...] }\n```",
+    "tags": ["ES2022", "ES2023", "ES2024", "新特性"],
+    "source": "高频"
+  },
+  {
+    "id": "js-040",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 JavaScript 中的隐式类型转换（ToPrimitive）",
+    "answer": "## 隐式类型转换\n\n### ToPrimitive 抽象操作\n将对象转为原始值时：\n1. 若有 `[Symbol.toPrimitive](hint)` 方法，调用它\n2. hint 是 'number'：先 `valueOf()`，再 `toString()`\n3. hint 是 'string'：先 `toString()`，再 `valueOf()`\n\n```js\nconst obj = {\n  valueOf() { return 42; },\n  toString() { return 'hello'; }\n};\n\n+obj;         // 42（number hint，valueOf）\n`${obj}`;     // 'hello'（string hint，toString）\nobj + '';     // '42'（default hint，valueOf 先）\n```\n\n### 常见隐式转换场景\n\n**+ 运算符**\n```js\n1 + '2';       // '12'（数字转字符串）\n1 + true;      // 2（true→1）\n1 + null;      // 1（null→0）\n1 + undefined; // NaN（undefined→NaN）\n'5' - 1;       // 4（字符串转数字）\n```\n\n**比较运算符**\n```js\n'5' > 3;    // true（字符串转数字）\nnull > 0;   // false\nnull == 0;  // false（特殊规则）\nnull >= 0;  // true（null 转 0）\n```\n\n**ToBoolean（假值列表）**\n```js\n// 假值（falsy）：false, 0, -0, 0n, '', null, undefined, NaN\n// 其余为真值，包括 [], {}, '0'\nBoolean([]);  // true\nBoolean({});  // true\nBoolean('0'); // true\n```\n\n**对象与原始值比较**\n```js\n[] == 0;        // true：[] → '' → 0\n[1] == 1;       // true：[1] → '1' → 1\n[] == ![];      // true（经典题）\n```",
+    "tags": ["类型转换", "ToPrimitive", "隐式转换"],
+    "source": "高频"
+  },
+  {
+    "id": "js-041",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "展开运算符和剩余参数的用法与区别",
+    "answer": "## 展开运算符（Spread）和剩余参数（Rest）\n\n### 展开运算符（Spread）\n将可迭代对象展开为独立元素。\n\n```js\n// 数组展开\nconst arr1 = [1, 2, 3];\nconst arr2 = [4, 5, 6];\nconst combined = [...arr1, ...arr2]; // [1, 2, 3, 4, 5, 6]\nconst copy = [...arr1]; // 浅拷贝\n\n// 函数参数展开\nMath.max(...arr1); // 3\n\n// 对象展开（ES2018）\nconst obj1 = { a: 1, b: 2 };\nconst obj2 = { b: 3, c: 4 };\nconst merged = { ...obj1, ...obj2 }; // { a: 1, b: 3, c: 4 }\n\n// 字符串转数组\n[...'hello']; // ['h', 'e', 'l', 'l', 'o']\n\n// Set 转数组\n[...new Set([1, 2, 2, 3])]; // [1, 2, 3]\n```\n\n### 剩余参数（Rest）\n将剩余参数收集到数组中。\n\n```js\n// 函数剩余参数\nfunction sum(first, ...rest) {\n  return first + rest.reduce((a, b) => a + b, 0);\n}\nsum(1, 2, 3, 4); // 10\n\n// 解构剩余\nconst [head, ...tail] = [1, 2, 3, 4];\nhead; // 1\ntail; // [2, 3, 4]\n\nconst { a, ...others } = { a: 1, b: 2, c: 3 };\nothers; // { b: 2, c: 3 }\n```\n\n### 与 arguments 的区别\n```js\nfunction old() {\n  // arguments 是类数组，没有数组方法，箭头函数中不可用\n  Array.from(arguments).map(...);\n}\n\nfunction modern(...args) {\n  // args 是真正的数组，可直接使用数组方法\n  args.map(...);\n}\n```",
+    "tags": ["展开运算符", "剩余参数", "ES6"],
+    "source": "高频"
+  },
+  {
+    "id": "js-042",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "什么是尾调用优化？",
+    "answer": "## 尾调用优化（TCO）\n\n### 什么是尾调用\n函数的最后一步是调用另一个函数（且直接 return 该调用结果）。\n\n```js\n// 尾调用\nfunction foo(x) {\n  return bar(x); // 最后一步，可优化\n}\n\n// 不是尾调用\nfunction baz(x) {\n  return bar(x) + 1; // 调用后还有 +1 操作\n}\n```\n\n### 尾调用优化原理\n普通递归每次调用都会在调用栈中保留一个栈帧。TCO 允许引擎复用当前栈帧，O(n) 空间降为 O(1)。\n\n```js\n// 普通递归：O(n) 空间，容易栈溢出\nfunction factorial(n) {\n  if (n <= 1) return 1;\n  return n * factorial(n - 1); // 不是尾调用！还要乘 n\n}\n\n// 尾递归优化：O(1) 空间\nfunction factorialTCO(n, acc = 1) {\n  if (n <= 1) return acc;\n  return factorialTCO(n - 1, n * acc); // 尾调用\n}\n```\n\n### 现实情况\n- ES6 规范要求严格模式下支持 TCO\n- 只有 Safari 完整实现了 TCO\n- Chrome/Node.js 出于调试考虑未实现\n\n### 变通方案：蹦床函数（Trampoline）\n```js\nfunction trampoline(fn) {\n  return function(...args) {\n    let result = fn(...args);\n    while (typeof result === 'function') {\n      result = result();\n    }\n    return result;\n  };\n}\n\nconst factorial = trampoline(function fact(n, acc = 1) {\n  if (n <= 1) return acc;\n  return () => fact(n - 1, n * acc); // 返回函数而非直接调用\n});\n\nfactorial(100000); // 不会栈溢出\n```",
+    "tags": ["尾调用", "递归", "优化"],
+    "source": "高频"
+  },
+  {
+    "id": "js-043",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "V8 引擎的 JIT 编译原理（隐藏类、内联缓存）",
+    "answer": "## V8 JIT 编译原理\n\n### 基本流水线\n```\n源代码 → 解析 → AST\n                ↓\n          Ignition（解释器）→ 字节码\n                ↓（热点代码）\n          TurboFan（优化编译器）→ 机器码\n```\n\n### 隐藏类（Hidden Class / Shape）\nV8 为每个对象结构创建隐藏类，相同结构的对象共享同一隐藏类，使属性访问变为偏移量查找。\n\n```js\n// ✅ 相同创建顺序 → 共享隐藏类 → 快速\nfunction Point(x, y) {\n  this.x = x; // C0 → C1\n  this.y = y; // C1 → C2\n}\nconst p1 = new Point(1, 2); // 共享 C2\nconst p2 = new Point(3, 4); // 共享 C2\n\n// ❌ 动态添加属性或顺序不同 → 不同隐藏类 → 慢\nconst bad1 = {}; bad1.x = 1; bad1.y = 2;\nconst bad2 = {}; bad2.y = 2; bad2.x = 1; // 不同的隐藏类！\n\n// ❌ delete 会降级为字典模式\ndelete p1.x; // 不要随意删除属性\n```\n\n### 内联缓存（Inline Cache, IC）\n```js\nfunction getX(obj) { return obj.x; }\n\n// 第一次（未初始化 IC）：完整查找属性，记录 {形状: C2, 偏移量: 0}\n// 第二次（单态 IC）：直接按偏移量读取，极快\n// 如果 obj 的形状变了 → 多态 IC（变慢）\n// 形状超过阈值 → 超多态 → 退回完整查找\n\ngetX(p1); // 初始化 IC\ngetX(p2); // 单态，极快\ngetX({ x: 1, extra: 2 }); // 形状不同，IC 变多态，稍慢\n```\n\n### 反优化（Deoptimization）\n```js\nfunction add(a, b) { return a + b; }\n\nadd(1, 2);     // TurboFan 假设参数是 number，生成优化代码\nadd(1, 2);     // 快速执行\nadd('x', 'y'); // 假设被打破！回退到解释执行，重新收集信息\n```\n\n### 性能建议\n- 保持函数参数类型一致（避免反优化）\n- 避免动态添加属性（影响隐藏类）\n- 避免使用 `delete`\n- 使用 TypedArray 处理数值密集计算\n- 初始化时在构造函数中声明所有属性",
+    "tags": ["V8", "JIT", "隐藏类", "内联缓存", "性能"],
+    "source": "高频"
+  },
+  {
+    "id": "js-044",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "详解 JavaScript 内存泄漏的场景和排查方法",
+    "answer": "## 内存泄漏排查\n\n### 常见泄漏场景\n\n**1. 意外的全局变量**\n```js\nfunction createLeak() {\n  leakedVar = new Array(1000000); // 未声明，变为全局\n  this.leak = 'data'; // 非严格模式 this=window\n}\n```\n\n**2. 未清除的事件监听**\n```js\nclass Component {\n  init() {\n    this.handler = () => this.handleEvent();\n    window.addEventListener('resize', this.handler);\n  }\n  destroy() {\n    // 必须移除！否则 window 持有引用链\n    window.removeEventListener('resize', this.handler);\n  }\n}\n```\n\n**3. 未清除的定时器**\n```js\nclass DataPoller {\n  start() {\n    this.timer = setInterval(() => this.fetchData(), 1000);\n  }\n  destroy() {\n    clearInterval(this.timer); // 必须清除\n  }\n}\n```\n\n**4. 游离 DOM 引用**\n```js\nconst elements = { button: document.getElementById('btn') };\ndocument.body.removeChild(elements.button);\n// DOM 节点已移除，但 elements.button 仍持有引用\nelements.button = null; // 需要手动清除\n```\n\n**5. 闭包持有不必要的大对象**\n```js\nfunction createClosure() {\n  const largeData = new Array(1000000).fill('data');\n  return function() {\n    return largeData[0]; // 整个数组被引用，无法 GC\n  };\n}\n```\n\n**6. 缓存无限增长**\n```js\nconst cache = {};\nfunction process(key, data) {\n  cache[key] = heavyProcess(data); // 没有清除策略\n}\n// 使用 WeakMap 或 LRU 缓存代替\n```\n\n### 排查工具（Chrome DevTools）\n\n1. **Performance 面板**：观察 JS Heap 是否持续增长（不降回去）\n2. **Memory 面板**：\n   - **Heap Snapshot**：快照对比，找到泄漏对象\n   - **Allocation Timeline**：随时间追踪内存分配\n   - **Allocation Sampling**：找内存分配最多的函数\n\n```js\n// 排查步骤\n// 1. 在操作前拍一次快照 S1\n// 2. 执行可疑操作多次\n// 3. 拍快照 S2\n// 4. 对比 S1 和 S2，找到增量对象\n// 5. 查看对象的 retainer（引用链）\n```\n\n### 预防措施\n- 使用 `WeakMap`/`WeakRef` 存储对 DOM 的引用\n- 组件销毁时清除事件监听和定时器（React useEffect cleanup）\n- 实现 LRU 缓存限制缓存大小\n- 使用 `AbortController` 取消 fetch 请求",
+    "tags": ["内存泄漏", "GC", "性能", "调试"],
+    "source": "高频"
+  },
+  {
+    "id": "js-045",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "JavaScript 并发模型与 Web Workers",
+    "answer": "## JavaScript 并发模型与 Web Workers\n\n### JavaScript 单线程的局限\nCPU 密集型任务会阻塞主线程，导致 UI 卡顿：\n```js\n// 阻塞主线程的例子\nfunction heavyCompute() {\n  let sum = 0;\n  for (let i = 0; i < 1e9; i++) sum += i;\n  return sum;\n}\nheavyCompute(); // 阻塞几秒，页面无响应\n```\n\n### Web Workers\n提供真正的多线程能力，在后台线程运行 JS，不阻塞主线程。\n\n```js\n// worker.js\nself.onmessage = function(event) {\n  const { data } = event.data;\n  // 耗时计算\n  const result = data.reduce((sum, n) => sum + n, 0);\n  self.postMessage({ result });\n};\n\n// main.js\nconst worker = new Worker('./worker.js');\n\nworker.postMessage({ data: largeArray });\n\nworker.onmessage = function(event) {\n  console.log('Result:', event.data.result);\n};\n\nworker.onerror = function(err) {\n  console.error(err);\n};\n\n// 用完销毁\nworker.terminate();\n```\n\n### SharedArrayBuffer + Atomics（线程间共享内存）\n```js\n// 共享内存\nconst buffer = new SharedArrayBuffer(4);\nconst view = new Int32Array(buffer);\n\n// worker 中\nAtomics.add(view, 0, 1); // 原子操作，线程安全\nAtomics.store(view, 0, 42);\nAtomics.load(view, 0);\nAtomics.wait(view, 0, 0);  // 等待值变化\nAtomics.notify(view, 0);   // 通知等待的线程\n```\n\n### Worker 的限制\n- 无法直接访问 DOM\n- 无法使用 `window` 对象（可用 `self`）\n- 通信通过 `postMessage`（结构化克隆，有开销）\n- 可以使用 `fetch`、`WebSocket`、`IndexedDB`\n\n### 适用场景\n- 图像/视频处理\n- 大数据计算\n- 复杂算法（排序、加密）\n- 实时数据处理",
+    "tags": ["Web Workers", "多线程", "并发", "SharedArrayBuffer"],
+    "source": "高频"
+  },
+  {
+    "id": "js-046",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "详解 JavaScript 的事件委托机制及其实现",
+    "answer": "## 事件委托（Event Delegation）\n\n### 原理\n利用事件冒泡，将子元素的事件监听代理到父元素上处理。\n\n```html\n<ul id=\"list\">\n  <li data-id=\"1\">Item 1</li>\n  <li data-id=\"2\">Item 2</li>\n  <li data-id=\"3\">Item 3</li>\n</ul>\n```\n\n```js\n// ❌ 不好的方式：每个 li 都绑定事件\ndocument.querySelectorAll('#list li').forEach(li => {\n  li.addEventListener('click', handler);\n});\n\n// ✅ 事件委托：只在父元素绑定一次\ndocument.getElementById('list').addEventListener('click', function(event) {\n  const li = event.target.closest('li');\n  if (!li) return;\n  const id = li.dataset.id;\n  console.log('Clicked item:', id);\n});\n```\n\n### 优点\n1. 减少事件监听器数量，节省内存\n2. 动态添加的元素自动获得事件处理（无需重新绑定）\n3. 减少 DOM 操作\n\n### 封装通用事件委托\n```js\nfunction delegate(parent, selector, eventType, handler) {\n  parent.addEventListener(eventType, function(event) {\n    // 从目标元素向上查找匹配的元素\n    let target = event.target;\n    while (target && target !== parent) {\n      if (target.matches(selector)) {\n        handler.call(target, event);\n        break;\n      }\n      target = target.parentElement;\n    }\n  });\n}\n\n// 使用\ndelegate(document.getElementById('list'), 'li', 'click', function(e) {\n  console.log('Clicked:', this.dataset.id);\n});\n```\n\n### 事件传播三阶段\n1. **捕获阶段**：从根向下到目标\n2. **目标阶段**：事件到达目标元素\n3. **冒泡阶段**：从目标向上到根\n\n```js\n// 第三个参数：true = 捕获阶段，false（默认）= 冒泡阶段\nelement.addEventListener('click', handler, true);\n\n// 阻止冒泡\nevent.stopPropagation();\n// 阻止同元素其他同类型事件处理器\nevent.stopImmediatePropagation();\n// 阻止默认行为\nevent.preventDefault();\n```",
+    "tags": ["事件委托", "事件冒泡", "性能", "DOM"],
+    "source": "高频"
+  },
+  {
+    "id": "js-047",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "描述 JavaScript 中的 AbortController 和取消异步操作",
+    "answer": "## AbortController\n\n### 基本用法\n```js\nconst controller = new AbortController();\nconst signal = controller.signal;\n\nfetch('/api/data', { signal })\n  .then(res => res.json())\n  .catch(err => {\n    if (err.name === 'AbortError') {\n      console.log('Request aborted');\n    } else {\n      throw err;\n    }\n  });\n\ncontroller.abort(); // 取消请求\n```\n\n### 超时控制\n```js\n// AbortSignal.timeout（ES2022）\nfetch('/api/data', {\n  signal: AbortSignal.timeout(3000) // 3秒超时\n});\n\n// 手动超时 + 可取消\nfunction fetchWithTimeout(url, timeout = 5000) {\n  const controller = new AbortController();\n  const timer = setTimeout(() => controller.abort(new Error('Timeout')), timeout);\n\n  return fetch(url, { signal: controller.signal })\n    .finally(() => clearTimeout(timer));\n}\n```\n\n### 在 React 中使用\n```js\nuseEffect(() => {\n  const controller = new AbortController();\n\n  fetch('/api/user', { signal: controller.signal })\n    .then(res => res.json())\n    .then(data => setUser(data))\n    .catch(err => {\n      if (err.name !== 'AbortError') setError(err);\n    });\n\n  return () => controller.abort(); // 组件卸载时取消\n}, []);\n```\n\n### 取消多个请求\n```js\nconst controller = new AbortController();\n\nawait Promise.all([\n  fetch('/api/a', { signal: controller.signal }),\n  fetch('/api/b', { signal: controller.signal }),\n  fetch('/api/c', { signal: controller.signal }),\n]);\n\ncontroller.abort(); // 一次性取消全部\n```\n\n### signal 状态监听\n```js\ncontroller.signal.addEventListener('abort', () => {\n  console.log('Aborted:', controller.signal.reason);\n});\nconsole.log(controller.signal.aborted); // false/true\n```",
+    "tags": ["AbortController", "fetch", "异步取消"],
+    "source": "高频"
+  },
+  {
+    "id": "js-048",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "手写一个并发控制器（限制并发请求数量）",
+    "answer": "## 并发控制器\n\n### 场景\n有 100 个请求，每次最多并发 3 个，前面完成一个才发下一个。\n\n### 实现\n```js\nclass ConcurrencyScheduler {\n  constructor(limit) {\n    this.limit = limit;\n    this.running = 0;\n    this.queue = [];\n  }\n\n  add(task) {\n    return new Promise((resolve, reject) => {\n      this.queue.push({ task, resolve, reject });\n      this.run();\n    });\n  }\n\n  run() {\n    while (this.running < this.limit && this.queue.length > 0) {\n      const { task, resolve, reject } = this.queue.shift();\n      this.running++;\n      Promise.resolve(task())\n        .then(resolve)\n        .catch(reject)\n        .finally(() => {\n          this.running--;\n          this.run();\n        });\n    }\n  }\n}\n\n// 使用\nconst scheduler = new ConcurrencyScheduler(3);\n\nconst urls = Array.from({ length: 10 }, (_, i) => `/api/${i}`);\n\nconst results = await Promise.all(\n  urls.map(url => scheduler.add(() => fetch(url).then(r => r.json())))\n);\n```\n\n### 函数式写法\n```js\nasync function pLimit(tasks, limit) {\n  const results = [];\n  const executing = new Set();\n\n  for (const task of tasks) {\n    const p = Promise.resolve().then(() => task());\n    results.push(p);\n    executing.add(p);\n\n    const clean = () => executing.delete(p);\n    p.then(clean, clean);\n\n    if (executing.size >= limit) {\n      await Promise.race(executing);\n    }\n  }\n\n  return Promise.all(results);\n}\n\nconst tasks = urls.map(url => () => fetch(url).then(r => r.json()));\nconst data = await pLimit(tasks, 3);\n```",
+    "tags": ["并发控制", "Promise", "调度", "手写"],
+    "source": "字节"
+  },
+  {
+    "id": "js-049",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "说说 JavaScript 中 BigInt 的使用场景和注意事项",
+    "answer": "## BigInt\n\n### 为什么需要 BigInt\nJavaScript 的 `Number` 类型使用 IEEE 754 双精度浮点数，安全整数范围为 `-(2^53-1)` 到 `2^53-1`。超过此范围会失去精度。\n\n```js\nNumber.MAX_SAFE_INTEGER; // 9007199254740991\n9007199254740991 + 1;   // 9007199254740992 ✅\n9007199254740991 + 2;   // 9007199254740992 ❌（精度丢失）\n```\n\n### BigInt 基本用法\n```js\n// 创建 BigInt\nconst big = 9007199254740991n;\nconst big2 = BigInt('9007199254740991');\n\nbig + 1n; // 9007199254740992n ✅\nbig * 2n; // 18014398509481982n\n\n// 类型\ntypeof 42n; // 'bigint'\n```\n\n### 注意事项\n```js\n// 1. 不能与普通 Number 直接运算\n42n + 1;   // TypeError！\n42n + 1n;  // 43n ✅\n\n// 2. 不支持一元 + 运算符\n+42n; // TypeError\n\n// 3. 可以比较（但不严格相等）\n42n == 42;   // true（宽松比较，类型转换）\n42n === 42;  // false（严格比较，类型不同）\n\n// 4. JSON.stringify 不支持\nJSON.stringify({ id: 42n }); // TypeError\n// 需要自定义 toJSON\nBigInt.prototype.toJSON = function() { return this.toString(); };\n\n// 5. 不支持 Math 对象的方法\nMath.sqrt(4n); // TypeError\n```\n\n### 应用场景\n```js\n// 1. 雪花 ID / 高精度 ID\nconst snowflakeId = 1234567890123456789n;\n\n// 2. 加密算法（RSA 等）\n// 3. 精确时间戳（纳秒级）\nconst ns = process.hrtime.bigint(); // Node.js\n\n// 4. 与 Number 互转\nNumber(42n);     // 42（可能精度丢失）\nBigInt(42);      // 42n\n```",
+    "tags": ["BigInt", "数字精度", "ES2020"],
+    "source": "高频"
+  },
+  {
+    "id": "js-050",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "解释 JavaScript 中的 WeakRef 和 FinalizationRegistry",
+    "answer": "## WeakRef 和 FinalizationRegistry（ES2021）\n\n### WeakRef\n创建对对象的弱引用，不阻止 GC 回收该对象。\n\n```js\nlet obj = { name: 'Alice', data: new Array(1000000) };\n\n// 创建弱引用\nconst weakRef = new WeakRef(obj);\n\n// 访问引用的对象\nconsole.log(weakRef.deref()?.name); // 'Alice'\n\n// 如果对象被 GC 了，deref() 返回 undefined\nobj = null; // 移除强引用\n// ... GC 运行后 ...\nconsole.log(weakRef.deref()); // 可能是 undefined\n```\n\n### FinalizationRegistry\n当对象被 GC 回收时，执行清理回调。\n\n```js\nconst registry = new FinalizationRegistry((heldValue) => {\n  console.log(`Object with key ${heldValue} was garbage collected`);\n  // 执行清理工作，如关闭连接、释放资源\n});\n\nlet obj = { id: 1 };\nregistry.register(obj, 'key-1'); // 注册对象和回调参数\n\nobj = null; // GC 可以回收 obj 了\n// GC 运行后，回调会被调用\n```\n\n### 实际应用：可选缓存\n```js\nclass OptionalCache {\n  #map = new Map();\n  #registry = new FinalizationRegistry(key => {\n    this.#map.delete(key);\n    console.log(`Cache entry ${key} cleaned up`);\n  });\n\n  set(key, value) {\n    const weakRef = new WeakRef(value);\n    this.#map.set(key, weakRef);\n    this.#registry.register(value, key);\n  }\n\n  get(key) {\n    return this.#map.get(key)?.deref();\n  }\n}\n```\n\n### 注意事项\n- GC 的时机不可预测，不要依赖清理回调的执行顺序\n- 主要用于内存敏感的缓存，不用于核心业务逻辑\n- 回调在微任务或宏任务中执行，不是同步的",
+    "tags": ["WeakRef", "FinalizationRegistry", "GC", "ES2021"],
+    "source": "高频"
+  },
+  {
+    "id": "js-051",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "解释 JavaScript 中的 Temporal 提案和日期处理痛点",
+    "answer": "## JavaScript 日期处理\n\n### Date 的痛点\n```js\n// 1. 月份从 0 开始（陷阱！）\nnew Date(2024, 0, 1); // 2024年1月1日（0=一月）\n\n// 2. 可变性（mutability）\nconst d = new Date();\nd.setMonth(d.getMonth() + 1); // 原地修改\n\n// 3. 时区处理混乱\nnew Date('2024-01-01'); // UTC 时间\nnew Date('2024/01/01'); // 本地时间（不同解析！）\n\n// 4. 没有日期计算 API\n// 计算两个日期相差多少天需要手动运算\n\n// 5. 没有时区感知\n```\n\n### 当前解决方案\n```js\n// date-fns（推荐，函数式，Tree Shaking 友好）\nimport { addDays, format, differenceInDays } from 'date-fns';\nconst tomorrow = addDays(new Date(), 1);\nformat(new Date(), 'yyyy-MM-dd');\n\n// dayjs（轻量，API 类似 moment）\nimport dayjs from 'dayjs';\ndayjs().add(1, 'day').format('YYYY-MM-DD');\n\n// Intl API（内置，国际化）\nnew Intl.DateTimeFormat('zh-CN', {\n  year: 'numeric', month: 'long', day: 'numeric'\n}).format(new Date()); // '2024年1月1日'\n```\n\n### Temporal 提案（Stage 3）\n```js\n// 不可变，时区感知，清晰的 API\nconst today = Temporal.PlainDate.today();\nconst tomorrow = today.add({ days: 1 });\n\nconst dt = Temporal.ZonedDateTime.from({\n  timeZone: 'America/New_York',\n  year: 2024, month: 1, day: 1,\n  hour: 12\n});\n\n// 精确的持续时间计算\nconst duration = Temporal.Duration.from({ years: 1, months: 2, days: 3 });\n```",
+    "tags": ["Date", "Temporal", "日期处理"],
+    "source": "高频"
+  },
+  {
+    "id": "js-052",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "说说 JavaScript 中的正则表达式高级用法",
+    "answer": "## 正则表达式高级用法\n\n### 命名捕获组（Named Capture Groups）\n```js\nconst re = /(?<year>\\d{4})-(?<month>\\d{2})-(?<day>\\d{2})/;\nconst match = '2024-01-15'.match(re);\nconsole.log(match.groups.year);  // '2024'\nconsole.log(match.groups.month); // '01'\nconsole.log(match.groups.day);   // '15'\n\n// 在替换中使用命名组\n'2024-01-15'.replace(re, '$<day>/$<month>/$<year>');\n// '15/01/2024'\n```\n\n### 环视（Lookahead / Lookbehind）\n```js\n// 正向前瞻：X 后面是 Y\n/\\d+(?= dollars)/.exec('100 dollars'); // ['100']\n\n// 负向前瞻：X 后面不是 Y\n/\\d+(?! dollars)/.exec('100 euros');   // ['100']\n\n// 正向后顾：X 前面是 Y\n/(?<=\\$)\\d+/.exec('$100'); // ['100']\n\n// 负向后顾：X 前面不是 Y\n/(?<!\\$)\\d+/.exec('€100'); // ['100']\n```\n\n### dotAll 模式（s 标志）\n```js\n// . 默认不匹配换行符\n/hello.world/.test('hello\\nworld'); // false\n\n// s 标志：. 匹配任意字符包括换行\n/hello.world/s.test('hello\\nworld'); // true\n```\n\n### String.matchAll\n```js\nconst str = 'cat bat sat';\nconst re = /[a-z]at/g;\n\n// matchAll 返回迭代器，每个匹配包含完整信息\nfor (const match of str.matchAll(re)) {\n  console.log(match[0], match.index);\n}\n// cat 0, bat 4, sat 8\n```\n\n### 实用场景\n```js\n// 密码强度验证\nconst strongPassword = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[!@#$]).{8,}$/;\n\n// URL 解析\nconst urlRe = /^(?<protocol>https?):\\/\\/(?<host>[^/]+)(?<path>\\/.*)$/;\n\n// 手机号格式化\n'13812345678'.replace(/(\\d{3})(\\d{4})(\\d{4})/, '$1-$2-$3');\n// '138-1234-5678'\n```",
+    "tags": ["正则表达式", "命名捕获组", "环视"],
+    "source": "高频"
+  },
+  {
+    "id": "js-053",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "解释 JavaScript 中的异步迭代器（Async Iterator）",
+    "answer": "## 异步迭代器\n\n### 基本概念\n异步迭代器用于处理异步数据流，`next()` 返回 Promise。\n\n```js\n// 实现异步迭代器\nconst asyncRange = {\n  from: 1,\n  to: 3,\n  [Symbol.asyncIterator]() {\n    let current = this.from;\n    const last = this.to;\n    return {\n      async next() {\n        await new Promise(resolve => setTimeout(resolve, 100)); // 模拟异步\n        if (current <= last) {\n          return { value: current++, done: false };\n        }\n        return { value: undefined, done: true };\n      }\n    };\n  }\n};\n\n// for await...of\nfor await (const num of asyncRange) {\n  console.log(num); // 1, 2, 3（每隔100ms）\n}\n```\n\n### 异步 Generator\n```js\nasync function* fetchPages(url) {\n  let page = 1;\n  while (true) {\n    const res = await fetch(`${url}?page=${page}`);\n    const data = await res.json();\n    if (!data.items.length) return;\n    yield data.items;\n    page++;\n  }\n}\n\nfor await (const items of fetchPages('/api/list')) {\n  console.log(items);\n  // 每次 yield 一页数据\n}\n```\n\n### 实际应用：分页加载\n```js\nasync function* paginate(fetchFn) {\n  let cursor = null;\n  do {\n    const { data, nextCursor } = await fetchFn(cursor);\n    yield data;\n    cursor = nextCursor;\n  } while (cursor);\n}\n\n// 使用\nfor await (const page of paginate(fetchUsers)) {\n  renderUsers(page);\n}\n```\n\n### ReadableStream 异步迭代（现代浏览器）\n```js\nconst response = await fetch('/api/stream');\nconst reader = response.body.getReader();\n\n// ReadableStream 支持 for await...of\nfor await (const chunk of response.body) {\n  processChunk(chunk);\n}\n```",
+    "tags": ["异步迭代器", "for await...of", "Generator", "流"],
+    "source": "高频"
+  },
+  {
+    "id": "js-054",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "详解 JavaScript 的类型系统和 typeof / instanceof 的底层原理",
+    "answer": "## JS 类型系统底层\n\n### typeof 的实现原理\n`typeof` 通过检查值的内部类型标签（type tag）工作。\n\n```js\ntypeof undefined // 'undefined'（tag: 0b000_0001）\ntypeof null      // 'object'（历史 bug！null 的 tag 是 0，与对象相同）\ntypeof true      // 'boolean'\ntypeof 42        // 'number'\ntypeof 'str'     // 'string'\ntypeof Symbol()  // 'symbol'\ntypeof 42n       // 'bigint'\ntypeof {}        // 'object'\ntypeof []        // 'object'\ntypeof function(){} // 'function'（对象的特殊检测）\n```\n\n### instanceof 的原理\n沿原型链查找，检查 `Constructor.prototype` 是否在对象的原型链上。\n\n```js\nconst arr = [];\narr instanceof Array;  // true\narr instanceof Object; // true（Array.prototype -> Object.prototype）\n\n// 手写 instanceof\nfunction myInstanceof(obj, Constructor) {\n  if (obj === null || typeof obj !== 'object' && typeof obj !== 'function') {\n    return false;\n  }\n  let proto = Object.getPrototypeOf(obj);\n  while (proto !== null) {\n    if (proto === Constructor.prototype) return true;\n    proto = Object.getPrototypeOf(proto);\n  }\n  return false;\n}\n```\n\n### instanceof 的局限性\n```js\n// 跨 iframe 问题：不同 window 的 Array.prototype 不同\nconst iframe = document.createElement('iframe');\ndocument.body.appendChild(iframe);\nconst iframeArr = new iframe.contentWindow.Array();\niframeArr instanceof Array; // false！\nArray.isArray(iframeArr);   // true ✅（不受跨 iframe 影响）\n\n// Symbol.hasInstance 可以自定义 instanceof 行为\nclass Even {\n  static [Symbol.hasInstance](num) {\n    return num % 2 === 0;\n  }\n}\n2 instanceof Even; // true\n3 instanceof Even; // false\n```\n\n### 最准确的类型判断\n```js\nfunction getType(val) {\n  return Object.prototype.toString.call(val).slice(8, -1).toLowerCase();\n}\n\ngetType(null);      // 'null'\ngetType([]);        // 'array'\ngetType(new Date()); // 'date'\ngetType(/reg/);     // 'regexp'\ngetType(new Map()); // 'map'\n```",
+    "tags": ["typeof", "instanceof", "类型系统", "原理"],
+    "source": "高频"
+  },
+  {
+    "id": "js-055",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "说说 JavaScript 中的 Reflect API 有哪些方法及用途",
+    "answer": "## Reflect API\n\n### 概述\nReflect 提供了一套操作对象的方法，与 Proxy 的陷阱一一对应，是更现代、更规范的对象操作方式。\n\n### 主要方法\n\n```js\n// Reflect.get(target, prop, receiver)\nReflect.get({ x: 1 }, 'x'); // 1\n// receiver 用于处理 getter 中的 this\n\n// Reflect.set(target, prop, value, receiver)\nconst obj = {};\nReflect.set(obj, 'x', 1); // true（返回是否成功）\n\n// Reflect.has(target, prop) -- 对应 in 操作符\nReflect.has({ x: 1 }, 'x');         // true\nReflect.has({ x: 1 }, 'toString');  // true（原型链）\n\n// Reflect.deleteProperty(target, prop) -- 对应 delete\nReflect.deleteProperty(obj, 'x'); // true\n\n// Reflect.ownKeys(target) -- 所有自有键（包括 Symbol）\nconst sym = Symbol('s');\nconst o = { a: 1, [sym]: 2 };\nReflect.ownKeys(o); // ['a', Symbol(s)]\n\n// Reflect.apply(target, thisArg, args) -- 对应 Function.prototype.apply\nReflect.apply(Math.max, null, [1, 2, 3]); // 3\nReflect.apply(''.toUpperCase, 'hello', []); // 'HELLO'\n\n// Reflect.construct(target, args, newTarget) -- 对应 new\nconst arr = Reflect.construct(Array, [1, 2, 3]);\n\n// Reflect.defineProperty -- 对应 Object.defineProperty，但返回 boolean\nReflect.defineProperty(obj, 'y', { value: 2, writable: false });\n\n// Reflect.getOwnPropertyDescriptor\nReflect.getOwnPropertyDescriptor(obj, 'y');\n\n// Reflect.getPrototypeOf / setPrototypeOf\nReflect.getPrototypeOf([]) === Array.prototype; // true\n```\n\n### 与 Object 方法的区别\n```js\n// Object.defineProperty 抛出错误，Reflect.defineProperty 返回 false\ntry {\n  Object.defineProperty(frozen, 'prop', { value: 1 }); // 抛出\n} catch (e) {}\n\nconst ok = Reflect.defineProperty(frozen, 'prop', { value: 1 }); // false\n\n// Proxy 中配合 Reflect 使用 receiver 保证正确的 this\nconst proxy = new Proxy(obj, {\n  get(target, key, receiver) {\n    return Reflect.get(target, key, receiver); // receiver 正确传递\n  }\n});\n```",
+    "tags": ["Reflect", "Proxy", "对象操作"],
+    "source": "高频"
+  },
+  {
+    "id": "js-056",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "说说 String 常用方法",
+    "answer": "## String 常用方法\n\n### 查找\n```js\nconst str = 'Hello World';\nstr.indexOf('o');       // 4（第一个）\nstr.lastIndexOf('o');   // 7（最后一个）\nstr.includes('World');  // true\nstr.startsWith('Hello'); // true\nstr.endsWith('World');   // true\nstr.search(/[A-Z]/);     // 0（正则查找）\n```\n\n### 提取\n```js\nstr.slice(0, 5);      // 'Hello'（支持负数）\nstr.substring(0, 5);  // 'Hello'（不支持负数）\nstr.charAt(0);        // 'H'\nstr[0];               // 'H'\nstr.at(-1);           // 'd'（支持负索引，ES2022）\n```\n\n### 修改（返回新字符串）\n```js\nstr.toUpperCase();    // 'HELLO WORLD'\nstr.toLowerCase();    // 'hello world'\nstr.trim();           // 去除两端空格\nstr.trimStart();      // 去除左侧空格\nstr.trimEnd();        // 去除右侧空格\nstr.replace('o', '0'); // 'Hell0 World'（只替换第一个）\nstr.replaceAll('o', '0'); // 'Hell0 W0rld'\nstr.padStart(15, '*');  // '****Hello World'\nstr.padEnd(15, '-');    // 'Hello World----'\nstr.repeat(2);          // 'Hello WorldHello World'\n```\n\n### 分割/合并\n```js\nstr.split(' ');       // ['Hello', 'World']\nstr.split('');        // 每个字符\n['Hello', 'World'].join(' '); // 'Hello World'\n```\n\n### 模板字符串\n```js\nconst name = 'World';\n`Hello, ${name}!`; // 'Hello, World!'\n\n// 标签模板\nfunction tag(strings, ...values) {\n  return strings.reduce((result, str, i) =>\n    result + str + (values[i] !== undefined ? `<b>${values[i]}</b>` : ''), '');\n}\ntag`Hello ${name}, you are ${25} years old`;\n```",
+    "tags": ["String", "字符串方法"],
+    "source": "高频"
+  },
+  {
+    "id": "js-057",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "什么是立即执行函数表达式（IIFE）？",
+    "answer": "## IIFE（Immediately Invoked Function Expression）\n\n### 定义\n定义后立即执行的函数表达式，用于创建独立作用域。\n\n```js\n// 经典写法\n(function() {\n  var private = 'only in here';\n  console.log(private);\n})();\n\n// 箭头函数写法\n(() => {\n  console.log('IIFE with arrow');\n})();\n\n// 另一种括号位置\n(function() {\n  console.log('IIFE');\n}());\n```\n\n### 用途\n\n**1. 避免全局污染**\n```js\n// var 声明的变量不会泄漏到全局\n(function() {\n  var counter = 0;\n  // counter 仅在函数内部\n})();\n```\n\n**2. 模块模式（ES6 前的封装）**\n```js\nconst Counter = (function() {\n  let count = 0;\n  return {\n    increment() { count++; },\n    decrement() { count--; },\n    value() { return count; }\n  };\n})();\n\nCounter.increment();\nCounter.value(); // 1\n```\n\n**3. 避免循环闭包问题（ES5 时代）**\n```js\nfor (var i = 0; i < 3; i++) {\n  (function(i) {\n    setTimeout(() => console.log(i), 0); // 0 1 2\n  })(i);\n}\n// 现代写法直接用 let\n```\n\n**4. 处理异步模块加载**\n\n### 现代替代\n在 ES6+ 中，可以用块级作用域 `{}` + `let/const` 或 ES Module 代替 IIFE。",
+    "tags": ["IIFE", "作用域", "模块模式"],
+    "source": "高频"
+  },
+  {
+    "id": "js-058",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "解释 JavaScript 中的解构赋值",
+    "answer": "## 解构赋值\n\n### 数组解构\n```js\nconst [a, b, c] = [1, 2, 3];\nconst [x, , z] = [1, 2, 3]; // 跳过元素\n\n// 默认值\nconst [p = 0, q = 0] = [1]; // p=1, q=0\n\n// 剩余元素\nconst [head, ...tail] = [1, 2, 3, 4];\n// head=1, tail=[2,3,4]\n\n// 交换变量\nlet m = 1, n = 2;\n[m, n] = [n, m]; // m=2, n=1\n```\n\n### 对象解构\n```js\nconst { name, age } = { name: 'Alice', age: 25 };\n\n// 重命名\nconst { name: userName, age: userAge } = user;\n\n// 默认值\nconst { name = 'Anonymous', role = 'user' } = {};\n\n// 剩余属性\nconst { a, ...rest } = { a: 1, b: 2, c: 3 };\n// a=1, rest={b:2,c:3}\n\n// 嵌套解构\nconst { address: { city, zip } } = user;\n\n// 函数参数解构\nfunction greet({ name, age = 18 }) {\n  return `${name} is ${age}`;\n}\ngreet({ name: 'Alice' }); // 'Alice is 18'\n```\n\n### 混合解构\n```js\nconst {\n  name,\n  scores: [first, second],\n  address: { city }\n} = {\n  name: 'Alice',\n  scores: [90, 85],\n  address: { city: 'Beijing' }\n};\n```\n\n### 常见应用\n```js\n// 函数返回多个值\nfunction minMax(arr) {\n  return [Math.min(...arr), Math.max(...arr)];\n}\nconst [min, max] = minMax([3, 1, 4, 1, 5, 9]);\n\n// 模块导入\nimport { useState, useEffect } from 'react';\n\n// API 响应\nconst { data: { users }, meta: { total } } = await fetchUsers();\n```",
+    "tags": ["解构", "ES6", "数组", "对象"],
+    "source": "高频"
+  },
+  {
+    "id": "js-059",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "null 和 undefined 的区别",
+    "answer": "## null vs undefined\n\n### undefined\n表示变量已声明但未赋值，或属性不存在。\n\n```js\nlet a;              // undefined\nfunction foo() {}  // 无返回值，返回 undefined\nconst obj = {};\nobj.prop;           // undefined（属性不存在）\n\n// 场景\nfunction greet(name) {\n  // 未传参时 name 是 undefined\n}\ngreet(); // name = undefined\n```\n\n### null\n表示「有意为之」的空值，意味着「这里应该有个值，但现在没有」。\n\n```js\nlet user = null;  // 主动赋空值，表示「还没有用户」\n// 与 undefined 的区别：这是开发者有意设置的\n\ndocument.getElementById('nonexistent'); // null（DOM API 返回 null）\n```\n\n### 类型区别\n```js\ntypeof undefined; // 'undefined'\ntypeof null;      // 'object'（历史遗留 bug）\n\nnull == undefined;  // true（宽松比较）\nnull === undefined; // false（严格比较）\n\n// null 和 undefined 都是假值\nBoolean(null);      // false\nBoolean(undefined); // false\n```\n\n### 转为数字\n```js\nNumber(null);      // 0\nNumber(undefined); // NaN\n\nnull + 1;      // 1（null 转为 0）\nundefined + 1; // NaN\n```\n\n### 最佳实践\n- 变量初始化为「无值」→ 用 `null`（语义明确，表示空对象指针）\n- 未初始化的变量自然是 `undefined`，不要主动赋值为 `undefined`\n- 用 `value == null` 同时检查 null 和 undefined（唯一推荐使用 `==` 的场景）",
+    "tags": ["null", "undefined", "类型"],
+    "source": "高频"
+  },
+  {
+    "id": "js-060",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 JavaScript 中的 Mixin 模式",
+    "answer": "## Mixin 模式\n\n### 定义\nMixin 是一种将多个对象/类的方法组合到目标对象的技术，用于解决 JavaScript 单继承的限制。\n\n### 对象 Mixin\n```js\nconst Serializable = {\n  serialize() {\n    return JSON.stringify(this);\n  },\n  deserialize(json) {\n    return Object.assign(this, JSON.parse(json));\n  }\n};\n\nconst Validatable = {\n  validate() {\n    return Object.values(this).every(v => v !== null && v !== undefined);\n  }\n};\n\nclass User {\n  constructor(name, email) {\n    this.name = name;\n    this.email = email;\n  }\n}\n\n// 混入方法\nObject.assign(User.prototype, Serializable, Validatable);\n\nconst user = new User('Alice', 'alice@example.com');\nuser.serialize();  // '{\"name\":\"Alice\",\"email\":\"alice@example.com\"}'\nuser.validate();   // true\n```\n\n### 函数式 Mixin（更安全）\n```js\nconst withLogging = (Base) => class extends Base {\n  log(message) {\n    console.log(`[${this.constructor.name}] ${message}`);\n  }\n};\n\nconst withTimestamp = (Base) => class extends Base {\n  getTimestamp() {\n    return new Date().toISOString();\n  }\n};\n\nclass BaseModel {}\nclass User extends withTimestamp(withLogging(BaseModel)) {\n  constructor(name) { super(); this.name = name; }\n}\n\nconst user = new User('Alice');\nuser.log('Created');   // [User] Created\nuser.getTimestamp();   // ISO 时间戳\n```\n\n### 与继承的对比\n- 继承是 \"is-a\" 关系（Dog is an Animal）\n- Mixin 是 \"has-a\" / \"can-do\" 关系（User can serialize）\n- Mixin 避免了多继承的菱形问题",
+    "tags": ["Mixin", "组合", "设计模式", "继承"],
+    "source": "高频"
+  },
+  {
+    "id": "js-061",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 JavaScript 中的尾递归和递归优化",
+    "answer": "## 递归与优化\n\n### 普通递归的问题\n```js\nfunction fib(n) {\n  if (n <= 1) return n;\n  return fib(n - 1) + fib(n - 2); // 指数级复杂度 O(2^n)\n}\nfib(40); // 慢！fib(50) 会卡住\n```\n\n### 记忆化递归（Memoization）\n```js\nfunction memoize(fn) {\n  const cache = new Map();\n  return function(...args) {\n    const key = JSON.stringify(args);\n    if (cache.has(key)) return cache.get(key);\n    const result = fn.apply(this, args);\n    cache.set(key, result);\n    return result;\n  };\n}\n\nconst fib = memoize(function(n) {\n  if (n <= 1) return n;\n  return fib(n - 1) + fib(n - 2);\n});\n\nfib(100); // O(n)，极快\n```\n\n### 迭代替代递归\n```js\n// 斐波那契迭代版\nfunction fib(n) {\n  let a = 0, b = 1;\n  for (let i = 2; i <= n; i++) {\n    [a, b] = [b, a + b];\n  }\n  return n === 0 ? a : b;\n}\n\n// 树的深度优先遍历：递归 → 迭代（用栈）\nfunction dfs(root) {\n  const stack = [root];\n  const result = [];\n  while (stack.length) {\n    const node = stack.pop();\n    result.push(node.val);\n    if (node.right) stack.push(node.right);\n    if (node.left) stack.push(node.left);\n  }\n  return result;\n}\n```\n\n### 动态规划（Bottom-Up）\n```js\nfunction fib(n) {\n  const dp = [0, 1];\n  for (let i = 2; i <= n; i++) {\n    dp[i] = dp[i - 1] + dp[i - 2];\n  }\n  return dp[n];\n}\n\n// 空间优化版\nfunction fib(n) {\n  if (n <= 1) return n;\n  let prev = 0, curr = 1;\n  for (let i = 2; i <= n; i++) {\n    [prev, curr] = [curr, prev + curr];\n  }\n  return curr;\n}\n```",
+    "tags": ["递归", "记忆化", "动态规划", "优化"],
+    "source": "高频"
+  },
+  {
+    "id": "js-062",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 JavaScript 中的函数式编程概念",
+    "answer": "## 函数式编程（FP）\n\n### 核心原则\n\n**1. 纯函数（Pure Function）**\n- 相同输入永远得到相同输出\n- 没有副作用（不修改外部状态）\n\n```js\n// 纯函数\nconst add = (a, b) => a + b;\nconst double = arr => arr.map(x => x * 2); // 返回新数组\n\n// 非纯函数\nlet count = 0;\nconst increment = () => { count++; }; // 修改外部状态\n```\n\n**2. 不可变性（Immutability）**\n```js\n// 不要修改，而是创建新的\nconst addUser = (users, user) => [...users, user];\nconst updateUser = (users, id, updates) =>\n  users.map(u => u.id === id ? { ...u, ...updates } : u);\n```\n\n**3. 函数组合（Composition）**\n```js\nconst compose = (...fns) => x => fns.reduceRight((v, f) => f(v), x);\nconst pipe = (...fns) => x => fns.reduce((v, f) => f(v), x);\n\nconst transform = pipe(\n  x => x.trim(),\n  x => x.toLowerCase(),\n  x => x.replace(/\\s+/g, '-')\n);\ntransform('  Hello World  '); // 'hello-world'\n```\n\n**4. 高阶函数（Higher-Order Functions）**\n```js\n// 接受函数或返回函数\nconst map = (fn) => (arr) => arr.map(fn);\nconst filter = (fn) => (arr) => arr.filter(fn);\n\nconst doubleAll = map(x => x * 2);\ndoubleAll([1, 2, 3]); // [2, 4, 6]\n```\n\n**5. 避免共享状态**\n```js\n// 错误：共享 state\nlet state = { count: 0 };\nfunction increment() { state.count++; }\n\n// 正确：state 流转\nconst reducer = (state, action) => {\n  switch (action.type) {\n    case 'INCREMENT': return { ...state, count: state.count + 1 };\n    default: return state;\n  }\n};\n```\n\n### 实际应用\n```js\n// 数据管道\nconst result = users\n  .filter(u => u.age >= 18)\n  .map(u => ({ ...u, isAdult: true }))\n  .reduce((acc, u) => ({ ...acc, [u.id]: u }), {});\n```",
+    "tags": ["函数式编程", "纯函数", "不可变", "组合"],
+    "source": "高频"
+  },
+  {
+    "id": "js-063",
+    "module": "JS基础",
+    "difficulty": 1,
+    "question": "说说 JavaScript 中的 Number 类型精度问题",
+    "answer": "## Number 精度问题\n\n### IEEE 754 双精度浮点数\nJavaScript 的 Number 使用 64 位浮点数，导致某些十进制数无法精确表示。\n\n```js\n0.1 + 0.2;        // 0.30000000000000004\n0.1 + 0.2 === 0.3; // false！\n\n// 整数精度\nNumber.MAX_SAFE_INTEGER;   // 9007199254740991 (2^53 - 1)\nNumber.MIN_SAFE_INTEGER;   // -9007199254740991\nNumber.isSafeInteger(9007199254740991); // true\nNumber.isSafeInteger(9007199254740992); // false\n\n// 特殊值\nInfinity;  // 无穷大\n-Infinity; // 负无穷\nNaN;       // 非数字（NaN !== NaN）\nNumber.isNaN(NaN);      // true（推荐，不转类型）\nisNaN('hello');         // true（会先转类型）\nNumber.isFinite(1/0);   // false\n```\n\n### 解决浮点精度问题\n```js\n// 方法1：toFixed（四舍五入，返回字符串）\n(0.1 + 0.2).toFixed(1);  // '0.3'\nparseFloat((0.1 + 0.2).toFixed(10)); // 0.3\n\n// 方法2：转为整数计算\nfunction add(a, b) {\n  const factor = Math.pow(10, 10);\n  return (Math.round(a * factor) + Math.round(b * factor)) / factor;\n}\nadd(0.1, 0.2); // 0.3\n\n// 方法3：误差比较\nconst EPSILON = Number.EPSILON; // 2.220446049250313e-16\nMath.abs(0.1 + 0.2 - 0.3) < EPSILON; // true\n\n// 方法4：使用第三方库\n// decimal.js, big.js\nimport Decimal from 'decimal.js';\nnew Decimal(0.1).plus(0.2).toString(); // '0.3'\n```\n\n### BigInt 解决大整数\n```js\n9007199254740993n; // 精确表示\n```",
+    "tags": ["Number", "浮点精度", "IEEE 754"],
+    "source": "高频"
+  },
+  {
+    "id": "js-064",
+    "module": "JS基础",
+    "difficulty": 2,
+    "question": "说说 JavaScript 中的函数重载如何实现",
+    "answer": "## JavaScript 函数重载\n\n### JavaScript 没有原生重载\nJS 中同名函数后者会覆盖前者，但可以通过以下方式模拟：\n\n### 方法1：检查参数数量\n```js\nfunction createElement(tag, options, children) {\n  if (arguments.length === 1) {\n    // 只有标签名\n    return document.createElement(tag);\n  } else if (arguments.length === 2) {\n    if (typeof options === 'string') {\n      // 第二个参数是 children（字符串）\n      const el = document.createElement(tag);\n      el.textContent = options;\n      return el;\n    } else {\n      // 第二个参数是 options 对象\n      return createElement(tag, options, null);\n    }\n  }\n  // ... 完整实现\n}\n```\n\n### 方法2：检查参数类型\n```js\nfunction process(input) {\n  if (typeof input === 'string') {\n    return input.toUpperCase();\n  } else if (Array.isArray(input)) {\n    return input.map(x => x * 2);\n  } else if (typeof input === 'number') {\n    return input * 2;\n  }\n  throw new TypeError('Unsupported type');\n}\n```\n\n### 方法3：选项对象（推荐）\n```js\nfunction fetchData({ url, method = 'GET', body = null, timeout = 5000 } = {}) {\n  // 通过解构实现灵活参数\n}\n\nfetchData({ url: '/api/users' });\nfetchData({ url: '/api/users', method: 'POST', body: { name: 'Alice' } });\n```\n\n### 方法4：方法分发表\n```js\nconst handlers = {\n  string: (v) => v.toUpperCase(),\n  number: (v) => v * 2,\n  array: (v) => v.flat(),\n  object: (v) => JSON.stringify(v)\n};\n\nfunction process(input) {\n  const type = Array.isArray(input) ? 'array' : typeof input;\n  const handler = handlers[type];\n  if (!handler) throw new TypeError(`No handler for ${type}`);\n  return handler(input);\n}\n```",
+    "tags": ["函数重载", "参数处理", "设计模式"],
+    "source": "高频"
+  },
+  {
+    "id": "js-065",
+    "module": "JS基础",
+    "difficulty": 3,
+    "question": "解释 JavaScript 中的 Atomics 和 SharedArrayBuffer",
+    "answer": "## Atomics 和 SharedArrayBuffer\n\n### SharedArrayBuffer\n允许在主线程和 Web Workers 之间共享内存（零拷贝通信）。\n\n```js\n// 创建 16 字节共享内存\nconst sab = new SharedArrayBuffer(16);\nconst int32 = new Int32Array(sab);\n\n// 传递给 Worker（共享同一内存块）\nworker.postMessage({ buffer: sab });\n```\n\n### 为什么需要 Atomics？\n多线程并发读写同一内存会导致竞态条件（Race Condition）：\n```\n线程A读: value = 0\n线程B读: value = 0\n线程A写: value = 1\n线程B写: value = 1\n结果: 应该是 2，实际是 1！\n```\n\n### Atomics API\n```js\nconst sab = new SharedArrayBuffer(4);\nconst view = new Int32Array(sab);\n\n// 原子加法（线程安全）\nAtomics.add(view, 0, 1);    // 原子地 += 1，返回旧值\nAtomics.sub(view, 0, 1);    // 原子地 -= 1\nAtomics.and(view, 0, 0xFF); // 原子位与\nAtomics.or(view, 0, 0x01);  // 原子位或\n\n// 原子读写\nAtomics.load(view, 0);         // 原子读取\nAtomics.store(view, 0, 42);    // 原子写入，返回写入值\n\n// 比较并交换（CAS，实现锁的基础）\n// 如果 view[0] === expectedValue，则写入 newValue\nAtomics.compareExchange(view, 0, 0, 1); // 返回旧值\n\n// 等待/通知（类似互斥锁）\n// Worker 中等待 view[0] 变为非 0\nAtomics.wait(view, 0, 0);   // 阻塞，只能在 Worker 中用\n// 主线程通知等待的 Worker\nAtomics.notify(view, 0, 1); // 唤醒1个等待者\n```\n\n### 简单互斥锁实现\n```js\nconst LOCK_INDEX = 0;\n\nfunction lock(view) {\n  // 自旋锁：不断尝试将 0 改为 1\n  while (Atomics.compareExchange(view, LOCK_INDEX, 0, 1) !== 0) {\n    Atomics.wait(view, LOCK_INDEX, 1); // 等待解锁\n  }\n}\n\nfunction unlock(view) {\n  Atomics.store(view, LOCK_INDEX, 0);\n  Atomics.notify(view, LOCK_INDEX, 1);\n}\n```\n\n### 注意事项\n- `Atomics.wait` 不能在主线程调用（会阻塞 UI）\n- SharedArrayBuffer 需要 COOP/COEP 响应头（安全限制）\n- 主要用于高性能计算场景（图像处理、科学计算）",
+    "tags": ["Atomics", "SharedArrayBuffer", "多线程", "并发"],
+    "source": "高频"
+  }
+]
+    "question": "var、let、const 有什么区别？",
+    "answer": "## var、let、const 的区别\n\n### 1. 作用域\n- `var`：函数作用域，在函数外声明则为全局变量\n- `let`/`const`：块级作用域，只在 `{}` 内有效\n\n### 2. 变量提升\n- `var` 存在变量提升，声明会提升到函数顶部，值为 `undefined`\n- `let`/`const` 存在「暂时性死区（TDZ）」，声明前访问会报 `ReferenceError`\n\n### 3. 重复声明\n- `var` 允许重复声明\n- `let`/`const` 不允许在

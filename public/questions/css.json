@@ -1,0 +1,141 @@
+[
+  {
+    "id": "css-001",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "CSS 盒模型是什么？标准盒模型和 IE 盒模型的区别？",
+    "answer": "## CSS 盒模型\n\n### 组成\n每个 HTML 元素都是一个矩形盒子，由四部分组成：\n```\n+----------------------------------+\n|           margin（外边距）        |\n|  +----------------------------+  |\n|  |       border（边框）        |  |\n|  |  +----------------------+  |  |\n|  |  |    padding（内边距）  |  |  |\n|  |  |  +----------------+  |  |  |\n|  |  |  |  content（内容）|  |  |  |\n|  |  |  +----------------+  |  |  |\n|  |  +----------------------+  |  |\n|  +----------------------------+  |\n+----------------------------------+\n```\n\n### 标准盒模型（content-box）\n```css\n/* 默认值 */\nbox-sizing: content-box;\n\n/* width/height 只包含 content */\n/* 实际占用宽度 = width + padding*2 + border*2 + margin*2 */\n.box {\n  width: 200px;\n  padding: 20px;\n  border: 5px solid;\n  /* 实际宽度 = 200 + 40 + 10 = 250px */\n}\n```\n\n### IE 盒模型（border-box）\n```css\nbox-sizing: border-box;\n\n/* width/height 包含 content + padding + border */\n/* 实际占用宽度 = width + margin*2 */\n.box {\n  box-sizing: border-box;\n  width: 200px;\n  padding: 20px;\n  border: 5px solid;\n  /* 实际宽度 = 200px（content 自动缩小）*/\n  /* content 宽度 = 200 - 40 - 10 = 150px */\n}\n```\n\n### 最佳实践\n```css\n/* 全局使用 border-box，更直观好用 */\n*, *::before, *::after {\n  box-sizing: border-box;\n}\n```\n\n### 获取元素尺寸\n```js\n// content-box 下\nelement.offsetWidth  // content + padding + border\nelement.clientWidth  // content + padding\nelement.style.width  // 只有 content\n\n// getBoundingClientRect() 返回实际渲染宽度\n```",
+    "tags": ["盒模型", "box-sizing", "布局"],
+    "source": "高频"
+  },
+  {
+    "id": "css-002",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "什么是 BFC（块级格式化上下文）？如何创建？有什么用途？",
+    "answer": "## BFC（Block Formatting Context）\n\n### 概念\nBFC 是 CSS 渲染中的一个独立渲染区域，内部元素的布局不会影响外部元素。\n\n### 创建 BFC 的方式\n```css\n/* 1. float 不为 none */\n.bfc { float: left; }\n\n/* 2. position 为 absolute 或 fixed */\n.bfc { position: absolute; }\n\n/* 3. display 为 flex/grid/inline-block/table-cell 等 */\n.bfc { display: inline-block; }\n.bfc { display: flex; }\n\n/* 4. overflow 不为 visible（最常用）*/\n.bfc { overflow: hidden; }\n.bfc { overflow: auto; }\n\n/* 5. display: flow-root（专为 BFC 设计，无副作用）*/\n.bfc { display: flow-root; }\n```\n\n### BFC 的特性和用途\n\n**1. 清除浮动（防止高度塌陷）**\n```css\n.container {\n  overflow: hidden; /* 或 display: flow-root */\n}\n.float-child {\n  float: left;\n  height: 100px;\n}\n/* 没有 BFC 时，container 高度为 0 */\n/* 有 BFC 时，container 包含浮动子元素 */\n```\n\n**2. 防止 margin 折叠**\n```css\n/* 同一 BFC 内的兄弟元素 margin 会折叠 */\n/* 子元素在不同 BFC 内则不折叠 */\n.wrapper {\n  overflow: hidden; /* 创建 BFC */\n}\n.child {\n  margin-top: 20px; /* 不会与父元素折叠 */\n}\n```\n\n**3. 自适应两栏布局**\n```css\n.float-left {\n  float: left;\n  width: 200px;\n}\n.content {\n  overflow: hidden; /* BFC，不与浮动元素重叠 */\n  /* 自动占据剩余宽度 */\n}\n```",
+    "tags": ["BFC", "浮动", "布局", "margin折叠"],
+    "source": "高频"
+  },
+  {
+    "id": "css-003",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "Flexbox 布局的核心属性有哪些？",
+    "answer": "## Flexbox 布局\n\n### 容器属性（父元素）\n```css\n.container {\n  display: flex; /* 或 inline-flex */\n\n  /* 主轴方向 */\n  flex-direction: row;          /* 默认：横向 */\n  flex-direction: row-reverse;  /* 横向反转 */\n  flex-direction: column;       /* 纵向 */\n  flex-direction: column-reverse;\n\n  /* 是否换行 */\n  flex-wrap: nowrap;   /* 默认：不换行 */\n  flex-wrap: wrap;     /* 换行 */\n\n  /* 主轴对齐 */\n  justify-content: flex-start;    /* 默认：起点 */\n  justify-content: flex-end;      /* 终点 */\n  justify-content: center;        /* 居中 */\n  justify-content: space-between; /* 两端对齐 */\n  justify-content: space-around;  /* 等间距 */\n  justify-content: space-evenly;  /* 均匀间距 */\n\n  /* 交叉轴对齐（单行）*/\n  align-items: stretch;     /* 默认：拉伸 */\n  align-items: flex-start;\n  align-items: flex-end;\n  align-items: center;\n  align-items: baseline;    /* 基线对齐 */\n\n  /* 交叉轴对齐（多行）*/\n  align-content: flex-start;\n  align-content: center;\n  align-content: space-between;\n\n  gap: 16px;            /* 间距 */\n  gap: 16px 8px;        /* row-gap column-gap */\n}\n```\n\n### 子项属性\n```css\n.item {\n  /* 放大比例 */\n  flex-grow: 0;   /* 默认：不放大 */\n  flex-grow: 1;   /* 占据剩余空间 */\n\n  /* 缩小比例 */\n  flex-shrink: 1; /* 默认：等比缩小 */\n  flex-shrink: 0; /* 不缩小 */\n\n  /* 基准大小 */\n  flex-basis: auto; /* 默认：由 width/height 决定 */\n  flex-basis: 200px;\n\n  /* 简写 */\n  flex: 1;          /* flex: 1 1 0% */\n  flex: auto;       /* flex: 1 1 auto */\n  flex: none;       /* flex: 0 0 auto */\n\n  /* 单独交叉轴对齐 */\n  align-self: center;\n\n  /* 排列顺序 */\n  order: 0; /* 默认：按 DOM 顺序 */\n  order: -1; /* 排到最前 */\n}\n```\n\n### 常见居中布局\n```css\n/* 水平垂直居中 */\n.container {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n```",
+    "tags": ["Flexbox", "布局", "CSS"],
+    "source": "高频"
+  },
+  {
+    "id": "css-004",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "CSS Grid 布局是什么？核心属性有哪些？",
+    "answer": "## CSS Grid 布局\n\n### 基本概念\nGrid 是二维布局系统，同时控制行和列。\n\n### 容器属性\n```css\n.grid {\n  display: grid;\n\n  /* 定义列 */\n  grid-template-columns: 200px 1fr 200px;      /* 三列 */\n  grid-template-columns: repeat(3, 1fr);       /* 等分三列 */\n  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); /* 自适应 */\n\n  /* 定义行 */\n  grid-template-rows: 60px 1fr 60px;\n  grid-auto-rows: 100px; /* 隐式行高 */\n\n  /* 间距 */\n  gap: 16px;\n  row-gap: 16px;\n  column-gap: 24px;\n\n  /* 对齐（所有项目）*/\n  justify-items: start | end | center | stretch;\n  align-items: start | end | center | stretch;\n\n  /* 整体对齐 */\n  justify-content: center;\n  align-content: center;\n\n  /* 命名区域 */\n  grid-template-areas:\n    \"header header\"\n    \"sidebar main\"\n    \"footer footer\";\n}\n```\n\n### 子项属性\n```css\n.item {\n  /* 列范围 */\n  grid-column: 1 / 3;        /* 第1列到第3列 */\n  grid-column: span 2;       /* 跨2列 */\n\n  /* 行范围 */\n  grid-row: 1 / 3;\n  grid-row: span 2;\n\n  /* 简写 */\n  grid-area: header;         /* 命名区域 */\n  grid-area: 1 / 1 / 2 / 3; /* row-start / col-start / row-end / col-end */\n\n  /* 单独对齐 */\n  justify-self: center;\n  align-self: center;\n}\n```\n\n### 实用示例\n```css\n/* 经典三栏布局 */\n.layout {\n  display: grid;\n  grid-template-areas:\n    \"header header header\"\n    \"sidebar main aside\"\n    \"footer footer footer\";\n  grid-template-columns: 200px 1fr 200px;\n  grid-template-rows: 60px 1fr 60px;\n  min-height: 100vh;\n}\n\n.header { grid-area: header; }\n.sidebar { grid-area: sidebar; }\n.main { grid-area: main; }\n.aside { grid-area: aside; }\n.footer { grid-area: footer; }\n```",
+    "tags": ["Grid", "布局", "CSS"],
+    "source": "高频"
+  },
+  {
+    "id": "css-005",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "CSS 选择器优先级是如何计算的？",
+    "answer": "## CSS 选择器优先级\n\n### 优先级规则\n优先级用四位数表示 (a, b, c, d)，从高到低比较：\n\n```\na: 内联样式（style=\"...\"）→ 1000\nb: ID 选择器（#id）→ 100 每个\nc: 类/属性/伪类选择器（.class, [attr], :hover）→ 10 每个\nd: 元素/伪元素选择器（div, ::before）→ 1 每个\n* 通用选择器（*）→ 0\n```\n\n### 计算示例\n```css\np { color: red; }                   /* (0,0,0,1) = 1 */\n.text { color: blue; }              /* (0,0,1,0) = 10 */\n#title { color: green; }            /* (0,1,0,0) = 100 */\nstyle=\"color: yellow;\"             /* (1,0,0,0) = 1000 */\n\n/* 复合选择器 */\ndiv p { }                           /* (0,0,0,2) = 2 */\n.nav .item { }                      /* (0,0,2,0) = 20 */\ndiv .item:hover { }                 /* (0,0,2,1) = 21 */\n#nav .item { }                      /* (0,1,1,0) = 110 */\n```\n\n### !important\n```css\n/* !important 覆盖所有优先级（包括内联样式）*/\np { color: red !important; }\n\n/* 避免使用 !important，只在迫不得已时使用 */\n/* 如果必须覆盖第三方库的样式 */\n```\n\n### 优先级相同时\n```\n后面的样式覆盖前面的（CSS 层叠）\n```\n\n### 继承\n```css\n/* 可继承属性：color, font-*, text-*, line-height */\n/* 不可继承：width, height, margin, padding, border */\n\n/* 强制继承 */\n.child { color: inherit; }\n\n/* 取消继承 */\n.child { color: initial; }\n```",
+    "tags": ["选择器", "优先级", "CSS", "层叠"],
+    "source": "高频"
+  },
+  {
+    "id": "css-006",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "如何实现水平垂直居中？有哪些方法？",
+    "answer": "## CSS 居中方案\n\n### 方法1：Flexbox（推荐）\n```css\n.container {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n```\n\n### 方法2：Grid\n```css\n.container {\n  display: grid;\n  place-items: center; /* 等于 justify-items + align-items */\n}\n```\n\n### 方法3：绝对定位 + transform\n```css\n.container {\n  position: relative;\n}\n\n.child {\n  position: absolute;\n  top: 50%;\n  left: 50%;\n  transform: translate(-50%, -50%);\n  /* 无需知道元素尺寸 */\n}\n```\n\n### 方法4：绝对定位 + margin: auto\n```css\n.container {\n  position: relative;\n}\n\n.child {\n  position: absolute;\n  top: 0;\n  right: 0;\n  bottom: 0;\n  left: 0;\n  margin: auto;\n  width: 200px;  /* 必须有固定宽高 */\n  height: 100px;\n}\n```\n\n### 方法5：table-cell（垂直居中）\n```css\n.container {\n  display: table-cell;\n  vertical-align: middle;\n  text-align: center;\n}\n```\n\n### 方法6：line-height（单行文本垂直居中）\n```css\n.container {\n  height: 50px;\n  line-height: 50px;\n  text-align: center;\n}\n```\n\n### 总结推荐\n```\n现代项目首选：Flexbox 或 Grid\n需要兼容旧浏览器：绝对定位 + transform\n单行文本：line-height\n```",
+    "tags": ["居中", "Flexbox", "Grid", "布局"],
+    "source": "高频"
+  },
+  {
+    "id": "css-007",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "什么是 CSS 伪类和伪元素？有什么区别？",
+    "answer": "## 伪类和伪元素\n\n### 伪类（Pseudo-class）\n用于选择处于特定状态的元素，使用单冒号 `:`\n\n```css\n/* 链接状态 */\na:link { }        /* 未访问 */\na:visited { }     /* 已访问 */\na:hover { }       /* 鼠标悬停 */\na:active { }      /* 激活（点击中）*/\n\n/* 表单状态 */\ninput:focus { }\ninput:disabled { }\ninput:checked { }\ninput:valid { }\ninput:invalid { }\n\n/* 结构伪类 */\nli:first-child { }     /* 第一个子元素 */\nli:last-child { }      /* 最后一个子元素 */\nli:nth-child(2) { }    /* 第2个 */\nli:nth-child(odd) { }  /* 奇数 */\nli:nth-child(2n+1) { } /* 等同于 odd */\nli:not(.special) { }   /* 否定 */\nli:first-of-type { }   /* 同类型中第一个 */\n\n/* 其他 */\n:root { }   /* 根元素（= html，但优先级更高）*/\n:empty { }  /* 没有子元素 */\n```\n\n### 伪元素（Pseudo-element）\n创建不在 DOM 中的虚拟元素，使用双冒号 `::`（CSS3）\n\n```css\n/* 在元素内容前/后插入内容 */\n.item::before {\n  content: '★';  /* content 是必须的 */\n  color: gold;\n}\n\n.item::after {\n  content: '';\n  display: block;\n  clear: both;\n}\n\n/* 选中文本样式 */\n::selection {\n  background: #ff6b6b;\n  color: white;\n}\n\n/* 第一行/第一个字母 */\np::first-line { font-weight: bold; }\np::first-letter { font-size: 2em; }\n\n/* 占位符 */\ninput::placeholder { color: #999; }\n\n/* 滚动条 */\n::-webkit-scrollbar { width: 8px; }\n::-webkit-scrollbar-thumb { background: #ccc; }\n```\n\n### 关键区别\n```\n伪类：选择已存在元素的特定状态（一个冒号）\n伪元素：创建不存在于 DOM 的元素（两个冒号）\n```",
+    "tags": ["伪类", "伪元素", "选择器", "CSS"],
+    "source": "高频"
+  },
+  {
+    "id": "css-008",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "什么是 CSS 变量（Custom Properties）？如何使用？",
+    "answer": "## CSS 变量（Custom Properties）\n\n### 基本用法\n```css\n/* 声明变量（通常在 :root 中定义全局变量）*/\n:root {\n  --primary-color: #007bff;\n  --font-size-base: 16px;\n  --spacing-sm: 8px;\n  --spacing-md: 16px;\n  --border-radius: 4px;\n  --shadow: 0 2px 8px rgba(0, 0, 0, 0.15);\n}\n\n/* 使用变量 */\n.button {\n  background-color: var(--primary-color);\n  font-size: var(--font-size-base);\n  padding: var(--spacing-sm) var(--spacing-md);\n  border-radius: var(--border-radius);\n  box-shadow: var(--shadow);\n}\n\n/* 带默认值 */\n.button {\n  color: var(--button-color, white); /* 如果 --button-color 未定义，使用 white */\n}\n```\n\n### 局部变量（作用域）\n```css\n/* 局部变量仅在该元素及其子元素中有效 */\n.card {\n  --card-bg: white;\n  background: var(--card-bg);\n}\n\n.card.dark {\n  --card-bg: #333; /* 覆盖局部变量 */\n}\n```\n\n### 主题切换\n```css\n[data-theme=\"light\"] {\n  --bg: white;\n  --text: #333;\n}\n\n[data-theme=\"dark\"] {\n  --bg: #1a1a1a;\n  --text: #fff;\n}\n\nbody {\n  background: var(--bg);\n  color: var(--text);\n  transition: background 0.3s, color 0.3s;\n}\n```\n\n```js\n// JS 读写 CSS 变量\nconst root = document.documentElement;\n\n// 读取\nconst color = getComputedStyle(root).getPropertyValue('--primary-color');\n\n// 修改\nroot.style.setProperty('--primary-color', '#ff6b6b');\n\n// 切换主题\ndocument.documentElement.setAttribute('data-theme', 'dark');\n```\n\n### 与 SCSS 变量的区别\n```\nCSS 变量：\n- 运行时（可被 JS 修改）\n- 支持继承和级联\n- 可响应媒体查询\n\nSCSS 变量：\n- 编译时（静态）\n- 不存在于最终 CSS 中\n```",
+    "tags": ["CSS变量", "自定义属性", "主题", "CSS"],
+    "source": "高频"
+  },
+  {
+    "id": "css-009",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "什么是响应式设计？如何使用媒体查询？",
+    "answer": "## 响应式设计\n\n### 核心原则\n1. **流式布局**：使用百分比、fr、em 等相对单位\n2. **弹性图片**：`max-width: 100%`\n3. **媒体查询**：针对不同视口设置样式\n\n### 媒体查询\n```css\n/* 移动优先（Mobile First，推荐）*/\n/* 默认：移动端样式 */\n.container { padding: 16px; }\n\n/* 平板及以上 */\n@media (min-width: 768px) {\n  .container { padding: 24px; }\n}\n\n/* 桌面及以上 */\n@media (min-width: 1024px) {\n  .container { padding: 32px; }\n}\n\n/* 桌面优先（Desktop First）*/\n@media (max-width: 768px) {\n  .nav { display: none; }\n}\n\n/* 复合查询 */\n@media (min-width: 768px) and (max-width: 1024px) {\n  /* 平板专属 */\n}\n\n/* 打印样式 */\n@media print {\n  .no-print { display: none; }\n}\n\n/* 暗色模式 */\n@media (prefers-color-scheme: dark) {\n  body { background: #1a1a1a; color: #fff; }\n}\n\n/* 减少动画（无障碍）*/\n@media (prefers-reduced-motion: reduce) {\n  * { animation: none !important; transition: none !important; }\n}\n```\n\n### 视口 meta 标签\n```html\n<!-- 必须！否则移动端会缩放 */\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n```\n\n### 响应式单位\n```css\n/* 相对于视口 */\nwidth: 100vw;   /* 100% 视口宽度 */\nheight: 100vh;  /* 100% 视口高度 */\nfont-size: 2vw; /* 随视口变化 */\n\n/* clamp：最小值、推荐值、最大值 */\nfont-size: clamp(16px, 2vw, 24px);\n```",
+    "tags": ["响应式", "媒体查询", "移动端", "布局"],
+    "source": "高频"
+  },
+  {
+    "id": "css-010",
+    "module": "CSS",
+    "difficulty": 1,
+    "question": "position 属性有哪些值？各有什么特点？",
+    "answer": "## CSS position 属性\n\n### static（默认）\n```css\n.el { position: static; }\n/* 正常文档流，不受 top/left/z-index 影响 */\n```\n\n### relative（相对定位）\n```css\n.el {\n  position: relative;\n  top: 20px;   /* 相对于自身原位置偏移 */\n  left: 20px;\n}\n/* 仍占据原来的空间（不脱离文档流）*/\n/* 通常作为绝对定位子元素的参照容器 */\n```\n\n### absolute（绝对定位）\n```css\n.parent { position: relative; } /* 参照容器 */\n\n.child {\n  position: absolute;\n  top: 0;\n  right: 0;\n  /* 相对于最近的非 static 定位祖先元素 */\n  /* 脱离文档流，不占据空间 */\n}\n```\n\n### fixed（固定定位）\n```css\n.header {\n  position: fixed;\n  top: 0;\n  left: 0;\n  width: 100%;\n  /* 相对于浏览器视口 */\n  /* 滚动时不移动 */\n  /* 脱离文档流 */\n}\n```\n\n### sticky（粘性定位）\n```css\n.nav {\n  position: sticky;\n  top: 0; /* 必须指定参照值 */\n  /* 平时按正常流，滚动到阈值后变为 fixed */\n  /* 在父元素范围内有效 */\n}\n\n/* 用于表格固定表头 */\nth {\n  position: sticky;\n  top: 0;\n  background: white;\n}\n```\n\n### z-index\n```css\n/* 只对非 static 定位的元素生效 */\n.overlay {\n  position: fixed;\n  z-index: 1000;\n}\n\n.modal {\n  position: relative;\n  z-index: 1001;\n}\n\n/* 注意：z-index 在层叠上下文中是独立的 */\n```",
+    "tags": ["position", "定位", "z-index", "布局"],
+    "source": "高频"
+  },
+  {
+    "id": "css-011",
+    "module": "CSS",
+    "difficulty": 2,
+    "question": "什么是层叠上下文（Stacking Context）？它是如何形成的？",
+    "answer": "## 层叠上下文（Stacking Context）\n\n### 概念\n层叠上下文是 HTML 元素的三维概念，决定元素在 z 轴方向的渲染顺序。层叠上下文内部的元素会相互独立于外部。\n\n### 形成层叠上下文的条件\n```css\n/* 1. 文档根元素 <html> */\n\n/* 2. position + z-index 非 auto */\n.el {\n  position: relative; /* 或 absolute/fixed/sticky */\n  z-index: 1;\n}\n\n/* 3. flex/grid 子项 + z-index 非 auto */\n.flex-child {\n  z-index: 1; /* 父元素是 flex/grid 容器 */\n}\n\n/* 4. opacity < 1 */\n.el { opacity: 0.9; }\n\n/* 5. transform 不为 none */\n.el { transform: rotate(10deg); }\n\n/* 6. filter 不为 none */\n.el { filter: blur(2px); }\n\n/* 7. will-change 指定以上属性 */\n.el { will-change: transform; }\n\n/* 8. isolation: isolate */\n.el { isolation: isolate; } /* 专门创建层叠上下文 */\n```\n\n### 同一层叠上下文中的绘制顺序\n```\n从下到上：\n1. 背景和边框（形成该上下文的元素本身）\n2. 负 z-index 的子元素\n3. 普通文档流（block）\n4. 浮动元素\n5. 文字（inline）\n6. z-index: 0 或 auto\n7. 正 z-index 的子元素\n```\n\n### 常见问题：z-index 不生效\n```css\n/* ❌ 问题：父元素创建了层叠上下文，子元素 z-index 被隔离 */\n.parent {\n  position: relative;\n  z-index: 1; /* 创建了层叠上下文 */\n  opacity: 0.9; /* 也会创建层叠上下文！ */\n}\n\n.child {\n  position: absolute;\n  z-index: 9999; /* 无法超过 parent 的兄弟元素 */\n}\n\n/* ✅ 解决：不让父元素形成层叠上下文 */\n.parent {\n  position: relative;\n  /* 不设置 z-index */\n}\n```",
+    "tags": ["层叠上下文", "z-index", "Stacking Context", "CSS"],
+    "source": "高频"
+  },
+  {
+    "id": "css-012",
+    "module": "CSS",
+    "difficulty": 2,
+    "question": "CSS 动画和过渡的区别？如何使用 animation 和 transition？",
+    "answer": "## CSS 动画和过渡\n\n### transition（过渡）\n从一个状态平滑变化到另一个状态，需要触发条件（如 hover）。\n\n```css\n.button {\n  background-color: blue;\n  transform: scale(1);\n\n  /* 属性名 持续时间 缓动函数 延迟 */\n  transition: background-color 0.3s ease, transform 0.2s ease;\n\n  /* 简写：过渡所有属性（性能较差）*/\n  /* transition: all 0.3s; */\n}\n\n.button:hover {\n  background-color: darkblue;\n  transform: scale(1.05);\n}\n\n/* 缓动函数 */\ntransition-timing-function: ease;          /* 默认 */\ntransition-timing-function: linear;        /* 匀速 */\ntransition-timing-function: ease-in;       /* 先慢后快 */\ntransition-timing-function: ease-out;      /* 先快后慢 */\ntransition-timing-function: ease-in-out;   /* 两端慢中间快 */\ntransition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); /* 自定义 */\n```\n\n### animation（动画）\n可以定义多帧动画，不需要触发条件，可以循环播放。\n\n```css\n/* 定义关键帧 */\n@keyframes fadeInUp {\n  from {\n    opacity: 0;\n    transform: translateY(20px);\n  }\n  to {\n    opacity: 1;\n    transform: translateY(0);\n  }\n}\n\n@keyframes spin {\n  0%   { transform: rotate(0deg); }\n  100% { transform: rotate(360deg); }\n}\n\n/* 使用动画 */\n.card {\n  /* 名称 时长 缓动 延迟 次数 方向 填充模式 播放状态 */\n  animation: fadeInUp 0.5s ease 0s 1 normal forwards;\n\n  /* 分开写 */\n  animation-name: fadeInUp;\n  animation-duration: 0.5s;\n  animation-timing-function: ease;\n  animation-delay: 0s;\n  animation-iteration-count: 1;     /* infinite 无限循环 */\n  animation-direction: normal;      /* alternate 往返 */\n  animation-fill-mode: forwards;    /* 保持最终状态 */\n  animation-play-state: running;    /* paused 暂停 */\n}\n\n/* 加载动画 */\n.spinner {\n  animation: spin 1s linear infinite;\n}\n```\n\n### 区别\n```\ntransition：\n- 需要触发条件\n- 只有起始和结束两个状态\n- 适合：hover 效果、状态切换\n\nanimation：\n- 可自动播放、循环\n- 可定义多个关键帧\n- 适合：加载动画、复杂动画效果\n```",
+    "tags": ["animation", "transition", "CSS动画", "keyframes"],
+    "source": "高频"
+  },
+  {
+    "id": "css-013",
+    "module": "CSS",
+    "difficulty": 2,
+    "question": "什么是 CSS Modules？与普通 CSS 的区别？",
+    "answer": "## CSS Modules\n\n### 概念\nCSS Modules 通过局部作用域避免 CSS 类名全局污染，在构建时将类名转换为唯一的哈希值。\n\n### 基本用法（React + Vite/webpack）\n```css\n/* Button.module.css */\n.button {\n  background: blue;\n  color: white;\n  padding: 8px 16px;\n}\n\n.button:hover {\n  background: darkblue;\n}\n\n.primary {\n  background: #007bff;\n}\n```\n\n```jsx\n// Button.jsx\nimport styles from './Button.module.css';\n\nfunction Button({ children, variant }) {\n  return (\n    <button className={`${styles.button} ${variant === 'primary' ? styles.primary : ''}`}>\n      {children}\n    </button>\n  );\n}\n\n// 编译后：<button class=\"Button_button_abc123 Button_primary_def456\">\n```\n\n### 与普通 CSS 的区别\n```\n普通 CSS：\n- 全局作用域，容易类名冲突\n- 在大型项目中难以维护\n\nCSS Modules：\n- 局部作用域，类名自动唯一化\n- 可以安全地使用简单类名（.button, .title）\n- 构建时生成哈希类名\n```\n\n### 全局样式\n```css\n/* 在 CSS Modules 中写全局样式 */\n:global(.global-class) {\n  color: red;\n}\n\n/* 或使用 :local 明确局部 */\n:local(.local-class) {\n  color: blue;\n}\n```\n\n### composes（样式组合）\n```css\n.base {\n  padding: 8px 16px;\n  border-radius: 4px;\n}\n\n.primary {\n  composes: base; /* 继承 base 的样式 */\n  background: blue;\n  color: white;\n}\n\n/* 从其他模块继承 */\n.special {\n  composes: base from './common.module.css';\n}\n```",
+    "tags": ["CSS Modules", "局部作用域", "React", "CSS"],
+    "source": "高频"
+  },
+  {
+    "id": "css-014",
+    "module": "CSS",
+    "difficulty": 2,
+    "question": "什么是 SCSS/Sass？有哪些核心特性？",
+    "answer": "## SCSS/Sass\n\n### 概念\nSCSS 是 CSS 预处理器，扩展了 CSS 的能力，编译后生成标准 CSS。\n\n### 变量\n```scss\n$primary: #007bff;\n$font-size: 16px;\n$border-radius: 4px;\n\n.button {\n  background: $primary;\n  font-size: $font-size;\n  border-radius: $border-radius;\n}\n```\n\n### 嵌套\n```scss\n.nav {\n  background: #333;\n\n  ul { list-style: none; }\n\n  li {\n    display: inline-block;\n\n    a {\n      color: white;\n      padding: 8px 16px;\n\n      &:hover {  /* & 表示父选择器 */\n        color: #ccc;\n      }\n\n      &.active {\n        font-weight: bold;\n      }\n    }\n  }\n\n  &--dark {  /* BEM: .nav--dark */\n    background: #000;\n  }\n}\n```\n\n### 混入（Mixin）\n```scss\n@mixin flex-center {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n}\n\n@mixin respond-to($breakpoint) {\n  @if $breakpoint == 'sm' {\n    @media (min-width: 576px) { @content; }\n  } @else if $breakpoint == 'md' {\n    @media (min-width: 768px) { @content; }\n  }\n}\n\n.container {\n  @include flex-center;\n\n  @include respond-to('md') {\n    padding: 24px;\n  }\n}\n```\n\n### 继承（Extend）\n```scss\n%card-base {\n  border-radius: 8px;\n  box-shadow: 0 2px 8px rgba(0,0,0,0.1);\n  padding: 16px;\n}\n\n.user-card {\n  @extend %card-base;\n  background: white;\n}\n\n.product-card {\n  @extend %card-base;\n  background: #f5f5f5;\n}\n```\n\n### 函数和运算\n```scss\n@function rem($px) {\n  @return $px / 16 * 1rem;\n}\n\n.title {\n  font-size: rem(24);   /* 1.5rem */\n  margin-bottom: 16px * 2;  /* 32px */\n}\n```\n\n### 循环\n```scss\n@for $i from 1 through 5 {\n  .col-#{$i} { width: 20% * $i; }\n}\n\n$colors: (primary: blue, danger: red, success: green);\n@each $name, $color in $colors {\n  .btn-#{$name} { background: $color; }\n}\n```",
+    "tags": ["SCSS", "Sass", "CSS预处理器", "Mixin"],
+    "source": "高频"
+  },
+  {
+    "id": "css-015",
+    "module": "CSS",
+    "difficulty": 2,
+    "question": "如何用 CSS 实现三角形、圆形等形状？",
+    "answer": "## CSS 形状绘制\n\n### 三角形（利用 border）\n```css\n/* 向上的三角形 */\n.triangle-up {\n  width: 0;\n  height: 0;\n  border-left: 20px solid transparent;\n  border-right: 20px solid transparent;\n  border-bottom: 40px solid red;\n}\n\n/* 向右的三角形 */\n.triangle-right {\n  width: 0;\n  height: 0;\n  border-top: 20px solid transparent;\n  border-bottom: 20px solid transparent;\n  border-left: 40px solid red;\n}\n\n/* 对话框箭头 */\n.bubble {\n  position: relative;\n  background: #007bff;\n  padding: 10px;\n  border-radius: 4px;\n}\n\n.bubble::after {\n  content: '';\n  position: absolute;\n  top: 100%;\n  left: 20px;\n  border: 8px solid transparent;\n  border-top-color: #007bff;\n}\n```\n\n### 圆形\n```css\n.circle {\n  width: 100px;\n  height: 100px;\n  border-radius: 50%;\n  background: blue;\n}\n```\n\n### 椭圆\n```css\n.ellipse {\n  width: 200px;\n  height: 100px;\n  border-radius: 50%;\n  background: red;\n}\n```\n\n### clip-path 绘制多边形\n```css\n/* 菱形 */\n.diamond {\n  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);\n}\n\n/* 六边形 */\n.hexagon {\n  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);\n}\n\n/* 星形 */\n.star {\n  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);\n}\n```\n\n### CSS 绘制图标\n```css\n/* 汉堡菜单 */\n.hamburger,\n.hamburger::before,\n.hamburger::after {\n  display: block;\n  width: 24px;\n  height: 2px;\n  background: currentColor;\n}\n\n.hamburger {\n  position: relative;\n}\n\n.hamburger::before {\n  content: '';\n  position: absolute;\n  top: -8px;\n}\n\n.hamburger::after {\n  content: '';\n  position: absolute;\n  top: 8px;\n}\n```",
+    "tags": ["CSS形状", "border技巧", "clip-path", "CSS绘图"],
+    "source": "高频"
+  },
+  {
+    "id": "css-016",
+    "module": "CSS",
+    "difficulty": 2,
+    "question": "什么是 CSS 的 contain
