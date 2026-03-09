@@ -4,10 +4,11 @@ import { Button, EmptyState, Skeleton } from "@/components/ui";
 import { applyFilters, useQuestions } from "@/hooks/useQuestions";
 import { useStudyStore } from "@/store/useStudyStore";
 import {
+	BUILTIN_MODULES,
 	DIFFICULTY_LABELS,
 	DIFFICULTY_STYLES,
 	type Difficulty,
-	MODULE_LIST,
+	getModuleIcon,
 	type Module,
 	STATUS_LABELS,
 	STATUS_STYLES,
@@ -26,6 +27,8 @@ interface FilterPanelProps {
 	onClear: () => void;
 	totalFiltered: number;
 	totalAll: number;
+	/** All module names present in current DB (built-in + custom) */
+	availableModules: Module[];
 }
 
 function FilterPanel({
@@ -38,6 +41,7 @@ function FilterPanel({
 	onClear,
 	totalFiltered,
 	totalAll,
+	availableModules,
 }: FilterPanelProps) {
 	const hasFilters =
 		selectedModules.length > 0 ||
@@ -101,21 +105,36 @@ function FilterPanel({
 
 			{/* Module */}
 			<div>
-				<p
-					style={{
-						fontSize: 11,
-						fontWeight: 500,
-						color: "var(--text-3)",
-						marginBottom: 6,
-						textTransform: "uppercase",
-						letterSpacing: "0.05em",
-					}}
-				>
-					模块
-				</p>
+				<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+					<p
+						style={{
+							fontSize: 11,
+							fontWeight: 500,
+							color: "var(--text-3)",
+							textTransform: "uppercase",
+							letterSpacing: "0.05em",
+						}}
+					>
+						模块
+					</p>
+					{/* Show badge when custom modules exist */}
+					{availableModules.some(m => !(BUILTIN_MODULES as readonly string[]).includes(m)) && (
+						<span style={{
+							fontSize: 10,
+							padding: "1px 5px",
+							borderRadius: 4,
+							background: "var(--primary-light)",
+							color: "var(--primary)",
+							border: "1px solid rgba(var(--primary-rgb),0.2)",
+						}}>
+							含自定义
+						</span>
+					)}
+				</div>
 				<div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-					{MODULE_LIST.map((mod) => {
+					{availableModules.map((mod) => {
 						const active = selectedModules.includes(mod);
+						const isCustom = !(BUILTIN_MODULES as readonly string[]).includes(mod);
 						return (
 							<button
 								key={mod}
@@ -178,11 +197,25 @@ function FilterPanel({
 										<polyline points="20 6 9 17 4 12" />
 									</svg>
 								)}
-							</button>
-						);
-					})}
-				</div>
-			</div>
+							<span>{getModuleIcon(mod)}</span>
+							<span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mod}</span>
+							{isCustom && (
+								<span style={{
+									fontSize: 9,
+									padding: "1px 4px",
+									borderRadius: 3,
+									background: active ? "rgba(255,255,255,0.2)" : "var(--surface-3)",
+									color: active ? "rgba(255,255,255,0.8)" : "var(--text-3)",
+									flexShrink: 0,
+								}}>
+									自定义
+								</span>
+							)}
+						</button>
+					);
+				})}
+		</div>
+	</div>
 
 			{/* Difficulty */}
 			<div>
@@ -570,6 +603,16 @@ export default function QuestionList() {
 		return m ? [m as Module] : [];
 	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+	// Derive sorted module list from actual questions (built-ins first, then custom alphabetically)
+	const availableModules = useMemo<Module[]>(() => {
+		const moduleSet = new Set(allQuestions.map((q) => q.module));
+		const builtins = (BUILTIN_MODULES as readonly string[]).filter((m) => moduleSet.has(m));
+		const custom = [...moduleSet]
+			.filter((m) => !(BUILTIN_MODULES as readonly string[]).includes(m))
+			.sort((a, b) => a.localeCompare(b));
+		return [...builtins, ...custom];
+	}, [allQuestions]);
+
 	const [selectedModules, setSelectedModules] = useState<Module[]>(initModules);
 	const [selectedDifficulties, setSelectedDifficulties] = useState<
 		Difficulty[]
@@ -701,6 +744,12 @@ export default function QuestionList() {
 		selectedDifficulties.length > 0 ||
 		selectedStatuses.length > 0 ||
 		debouncedSearch.length > 0;
+
+	// Keep selectedModules valid when availableModules changes (e.g. after import)
+	useEffect(() => {
+		if (availableModules.length === 0) return;
+		setSelectedModules((prev) => prev.filter((m) => availableModules.includes(m)));
+	}, [availableModules]);
 
 	return (
 		<div className="page-container">
@@ -1043,16 +1092,17 @@ export default function QuestionList() {
 					className="ql-sidebar"
 				>
 					<FilterPanel
-						selectedModules={selectedModules}
-						selectedDifficulties={selectedDifficulties}
-						selectedStatuses={selectedStatuses}
-						onModuleToggle={toggleModule}
-						onDifficultyToggle={toggleDifficulty}
-						onStatusToggle={toggleStatus}
-						onClear={clearFilters}
-						totalFiltered={filteredQuestions.length}
-						totalAll={allQuestions.length}
-					/>
+							selectedModules={selectedModules}
+							selectedDifficulties={selectedDifficulties}
+							selectedStatuses={selectedStatuses}
+							onModuleToggle={toggleModule}
+							onDifficultyToggle={toggleDifficulty}
+							onStatusToggle={toggleStatus}
+							onClear={clearFilters}
+							totalFiltered={filteredQuestions.length}
+							totalAll={allQuestions.length}
+							availableModules={availableModules}
+						/>
 				</div>
 
 				{/* ── Mobile filter drawer ── */}
@@ -1123,6 +1173,7 @@ export default function QuestionList() {
 									onClear={clearFilters}
 									totalFiltered={filteredQuestions.length}
 									totalAll={allQuestions.length}
+									availableModules={availableModules}
 								/>
 							</div>
 						</div>

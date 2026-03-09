@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Badge, Button } from "@/components/ui";
 
 const MODULE_VALUES = [
@@ -12,15 +12,139 @@ const MODULE_VALUES = [
 	"项目深挖",
 ];
 
-const SCHEMA_JSON = `{
-  "id": "string",          // 唯一 ID，建议格式：模块缩写-序号，如 js-001
-  "module": "JS基础 | React | 性能优化 | 网络 | CSS | TypeScript | 手写题 | 项目深挖",
-  "difficulty": 1 | 2 | 3, // 1=初级 2=中级 3=高级
-  "question": "string",    // 题目内容
-  "answer": "string",      // Markdown 格式的参考答案（支持代码块、表格、列表）
-  "tags": ["string"],      // 标签数组
-  "source": "string"       // 可选，来源标注，如"高频" "字节" "美团"
-}`;
+// ─── MD → JSON converter ─────────────────────────────────────────────────────
+
+/**
+ * Parse AI-generated Markdown into a Question JSON array.
+ *
+ * Expected Markdown block format (one per question):
+ * ---
+ * ## Q: <question text>
+ * **模块**: <module>
+ * **难度**: 初级 | 中级 | 高级
+ * **标签**: tag1, tag2
+ * **来源**: 高频          ← optional
+ * **ID**: js-001          ← optional, auto-generated if missing
+ *
+ * <answer markdown, any content until next --- or end>
+ * ---
+ */
+export function mdToQuestions(md: string): {
+	questions: Record<string, unknown>[];
+	errors: string[];
+} {
+	const questions: Record<string, unknown>[] = [];
+	const errors: string[] = [];
+
+	// Split on horizontal rules (--- or ***) at start of line
+	const blocks = md.split(/\n(?:---|\*\*\*)\n/).map((b) => b.trim()).filter(Boolean);
+
+	const diffMap: Record<string, number> = {
+		初级: 1, 入门: 1, easy: 1, "1": 1,
+		中级: 2, 中等: 2, medium: 2, "2": 2,
+		高级: 3, 进阶: 3, hard: 3, "3": 3,
+	};
+
+	const moduleAlias: Record<string, string> = {
+		js: "JS基础", javascript: "JS基础", "js基础": "JS基础",
+		react: "React",
+		css: "CSS",
+		ts: "TypeScript", typescript: "TypeScript",
+		网络: "网络", network: "网络", http: "网络",
+		性能: "性能优化", performance: "性能优化", "性能优化": "性能优化",
+		手写: "手写题", algorithm: "手写题", "手写题": "手写题",
+		项目: "项目深挖", project: "项目深挖", "项目深挖": "项目深挖",
+	};
+
+	const idCounters: Record<string, number> = {};
+
+	for (let bi = 0; bi < blocks.length; bi++) {
+		const block = blocks[bi];
+		if (!block) continue;
+
+		// Extract question line: "## Q: ..." or "## <number>. ..." or "## ..."
+		const qMatch = block.match(/^##\s+(?:Q:\s*|【.*?】\s*|\d+[.、]\s*)?(.+)/m);
+		if (!qMatch) {
+			// Try "### " as fallback
+			const q2 = block.match(/^###?\s+(.+)/m);
+			if (!q2) {
+				errors.push(`第 ${bi + 1} 块：未找到题目标题（需以 ## 开头）`);
+				continue;
+			}
+		}
+		const questionText = (qMatch ?? block.match(/^###?\s+(.+)/m))![1].trim()
+			.replace(/^\*+|\*+$/g, "").trim();
+
+		// Extract meta fields
+		const getField = (key: string) => {
+			const re = new RegExp(`\\*\\*${key}\\*\\*[:：]\\s*(.+)`, "i");
+			return block.match(re)?.[1]?.trim() ?? "";
+		};
+
+		const rawModule = getField("模块") || getField("module");
+		const rawDiff   = getField("难度") || getField("difficulty");
+		const rawTags   = getField("标签") || getField("tags");
+		const rawSource = getField("来源") || getField("source");
+		const rawId     = getField("ID") || getField("id");
+
+		// Resolve module
+		const moduleKey = (rawModule || "").toLowerCase().replace(/\s/g, "");
+		const resolvedModule = moduleAlias[moduleKey] ?? rawModule;
+		if (!resolvedModule) {
+			errors.push(`第 ${bi + 1} 块「${questionText.slice(0, 20)}…」：缺少模块字段`);
+			continue;
+		}
+
+		// Resolve difficulty
+		const diffKey = (rawDiff || "").toLowerCase().trim();
+		const difficulty = diffMap[rawDiff] ?? diffMap[diffKey] ?? 2;
+
+		// Tags
+		const tags = rawTags
+			? rawTags.split(/[,，、]/).map((t) => t.trim()).filter(Boolean)
+			: [];
+
+		// Auto-generate ID
+		let id = rawId;
+		if (!id) {
+			const prefix = resolvedModule
+				.toLowerCase()
+				.replace("js基础", "js")
+				.replace("性能优化", "perf")
+				.replace("手写题", "code")
+				.replace("项目深挖", "proj")
+				.replace(/[^a-z]/g, "")
+				.slice(0, 6);
+			idCounters[prefix] = (idCounters[prefix] ?? 0) + 1;
+			id = `${prefix}-${String(idCounters[prefix]).padStart(3, "0")}`;
+		}
+
+		// Extract answer: everything after the meta block
+		// Remove the header line + all **Field**: lines
+		const answerRaw = block
+			.replace(/^##\s+.+/m, "")
+			.replace(/^###?\s+.+/m, "")
+			.replace(/^\*\*(?:模块|module|难度|difficulty|标签|tags|来源|source|ID|id)\*\*[:：].+$/gim, "")
+			.trim();
+
+		if (!answerRaw) {
+			errors.push(`第 ${bi + 1} 块「${questionText.slice(0, 20)}…」：答案为空`);
+			continue;
+		}
+
+		questions.push({
+			id,
+			module: resolvedModule,
+			difficulty,
+			question: questionText,
+			answer: answerRaw,
+			tags,
+			...(rawSource ? { source: rawSource } : {}),
+		});
+	}
+
+	return { questions, errors };
+}
 
 // ─── Preset Prompts ───────────────────────────────────────────────────────────
 
@@ -32,61 +156,83 @@ interface PromptPreset {
 	prompt: string;
 }
 
+/**
+ * Build a prompt that asks the AI to output Markdown instead of JSON.
+ * Markdown is far more natural for LLMs and avoids JSON escaping errors.
+ * The mdToQuestions() converter above turns it into a JSON array afterward.
+ */
 function buildBasePrompt(
 	module: string,
 	count: number,
 	difficulty: string,
 	extra = "",
 ): string {
-	return `你是一位资深前端面试官，精通前端技术体系。请生成 ${count} 道关于「${module}」的前端面试题，输出为 JSON 数组格式。
+	return `你是一位资深面试官，精通 ${module} 技术体系。请生成 ${count} 道关于「${module}」的面试题。
 
-## 要求
-
-### 难度分布
+## 难度分布
 ${difficulty}
 
-### 质量要求
+## 质量要求
 - 每道题必须是**真实面试中出现过的考点**，不要编造生僻问题
-- 答案要**完整、准确、有深度**，覆盖核心知识点
-- 答案使用 **Markdown 格式**，合理使用代码块（\`\`\`js ... \`\`\`）、表格、列表
+- 答案要**完整、准确、有深度**，覆盖核心知识点、边界情况和最佳实践
+- 答案自由使用 Markdown：代码块、表格、列表、小标题随意用，写得清晰即可
 - 代码示例要**可运行、注释清晰**
 - 难度梯度合理：初级考基础概念，中级考原理与应用，高级考底层实现与优化
 
-### 内容覆盖
+## 内容覆盖
 ${extra || `覆盖 ${module} 模块的核心知识点，包括基础概念、实际应用、常见陷阱和最佳实践。`}
-
-### 标签规范
-- tags 数组包含 2-5 个关键词，方便搜索
-- 使用中文标签，如["原型链", "继承", "class"]
 
 ## 输出格式
 
-严格按照以下 JSON Schema 输出，**只输出 JSON 数组，不要有任何其他文字**：
+**每道题用 \`---\` 分隔，严格按下方模板输出，不要有任何额外说明文字。**
 
-\`\`\`json
-${SCHEMA_JSON}
+---
+## <题目内容，一句话>
+**模块**: ${module}
+**难度**: 初级 | 中级 | 高级  ← 三选一
+**标签**: 标签1, 标签2, 标签3
+**来源**: 高频  ← 可选，高频考点填"高频"，大厂题填公司名，否则省略此行
+
+<答案正文，完整 Markdown，可包含代码块、列表、表格等>
+
+---
+## <下一题题目>
+**模块**: ${module}
+...
+
+---
+
+## 示例（仅供格式参考，请生成新内容）
+
+---
+## 请解释 JavaScript 中的事件循环机制
+**模块**: ${module}
+**难度**: 中级
+**标签**: 事件循环, 宏任务, 微任务
+**来源**: 高频
+
+## 核心概念
+
+JavaScript 是单线程语言，事件循环（Event Loop）是其处理异步操作的核心机制。
+
+### 执行顺序
+
+1. 执行同步代码（调用栈）
+2. 清空微任务队列（Promise.then、queueMicrotask）
+3. 执行一个宏任务（setTimeout、setInterval、I/O）
+4. 重复步骤 2-3
+
+\`\`\`js
+console.log('1');
+setTimeout(() => console.log('2'), 0);
+Promise.resolve().then(() => console.log('3'));
+console.log('4');
+// 输出：1 4 3 2
 \`\`\`
 
-## 输出示例（仅供格式参考，请生成新内容）
+---
 
-\`\`\`json
-[
-  {
-    "id": "${module
-			.slice(0, 2)
-			.toLowerCase()
-			.replace(/[^a-z]/g, "x")}-001",
-    "module": "${module}",
-    "difficulty": 2,
-    "question": "请解释…",
-    "answer": "## 标题\\n\\n正文内容…\\n\\n\`\`\`js\\ncode here\\n\`\`\`",
-    "tags": ["关键词1", "关键词2"],
-    "source": "高频"
-  }
-]
-\`\`\`
-
-现在请生成 ${count} 道题目，只输出 JSON 数组：`;
+现在请生成 ${count} 道题目：`;
 }
 
 // ─── Preset Icons ─────────────────────────────────────────────────────────────
@@ -142,8 +288,8 @@ const PRESETS: PromptPreset[] = [
 		id: "full",
 		icon: <IconDatabase />,
 		title: "全量题库生成（推荐）",
-		description: "一次生成完整题库，约 500-600 道，覆盖所有模块",
-		prompt: `你是一位资深前端面试官，请为前端面试刷题系统生成完整题库。
+		description: "分模块批量生成，覆盖所有方向，生成后用转换器一键转 JSON",
+		prompt: `你是一位资深前端面试官，精通前端技术体系。请为前端面试刷题系统生成完整题库。
 
 ## 任务
 
@@ -153,125 +299,43 @@ const PRESETS: PromptPreset[] = [
 ${MODULE_VALUES.map((m) => `- ${m}`).join("\n")}
 
 ## 难度分布（每个模块内）
-- 初级（difficulty: 1）：占 30%，约 18-22 道
-- 中级（difficulty: 2）：占 50%，约 30-38 道
-- 高级（difficulty: 3）：占 20%，约 12-15 道
+- 初级（难度：初级）：占 30%，约 18-22 道
+- 中级（难度：中级）：占 50%，约 30-38 道
+- 高级（难度：高级）：占 20%，约 12-15 道
 
 ## 质量要求
 1. **真实性**：所有题目必须是真实面试中出现过的考点
-2. **深度**：答案要完整、准确，覆盖核心知识点、边界情况和最佳实践
-3. **代码**：中高级题目必须包含可运行的代码示例，使用 Markdown 代码块
+2. **深度**：答案完整、准确，覆盖核心知识点、边界情况和最佳实践
+3. **代码**：中高级题目必须包含可运行的代码示例（Markdown 代码块）
 4. **多样性**：避免同类题目重复，覆盖每个模块的不同子主题
-5. **高频标注**：将高频考点的 source 字段标注为"高频"，大厂面试题标注公司名
-
-## 各模块重点覆盖方向
-
-**JS基础（65道）**
-- 变量声明、作用域、闭包、原型链、this 绑定
-- 事件循环、Promise、async/await、微任务宏任务
-- ES6+ 新特性（解构、展开、迭代器、生成器、Proxy）
-- 类型系统、类型转换、隐式转换陷阱
-- 内存管理、垃圾回收、内存泄漏
-
-**React（65道）**
-- Hooks（useState、useEffect、useRef、useMemo、useCallback、useContext）
-- Fiber 架构、渲染机制、Diff 算法
-- 性能优化（memo、lazy、Suspense、Virtual DOM）
-- React 18 并发特性
-- 状态管理（Context、Redux、Zustand 对比）
-- 生命周期、错误边界、Portal
-
-**性能优化（50道）**
-- Core Web Vitals（LCP、INP、CLS）
-- 渲染优化（重排重绘、合成层、will-change）
-- 资源加载（preload/prefetch、懒加载、代码分割）
-- 打包优化（Tree Shaking、Bundle 分析）
-- 缓存策略、Service Worker
-
-**网络（60道）**
-- HTTP/1.1、HTTP/2、HTTP/3 对比
-- TCP 三次握手、四次挥手
-- HTTPS、TLS、证书
-- 缓存（强缓存、协商缓存）
-- 跨域（CORS、JSONP、代理）
-- 安全（XSS、CSRF、CSP、HTTPS）
-- WebSocket、SSE、长轮询
-- DNS、CDN
-
-**CSS（55道）**
-- 盒模型、BFC、IFC、层叠上下文
-- Flexbox、Grid 布局
-- CSS 变量、动画、过渡
-- 响应式设计、媒体查询
-- CSS 预处理器、CSS Modules
-- 选择器优先级、伪类伪元素
-
-**TypeScript（55道）**
-- 基础类型、接口、泛型
-- 工具类型（Partial、Pick、Omit、Record 等）
-- 类型守卫、条件类型、映射类型
-- 装饰器、命名空间、模块
-- 配置（tsconfig.json）
-- 与 React 结合
-
-**手写题（50道）**
-- Promise、防抖、节流、深拷贝
-- call/apply/bind、new、instanceof
-- 数组方法（flat、reduce、map）
-- 发布订阅、观察者模式
-- LRU 缓存、虚拟 DOM、简版 React
-- 路由、状态管理
-
-**项目深挖（50道）**
-- 工程化（Webpack、Vite、Rollup 配置与原理）
-- 微前端架构
-- 监控与埋点
-- CI/CD、部署
-- 性能监控、错误上报
-- 大型项目架构设计
-- 技术选型与方案对比
-
-## ID 命名规范
-- JS基础：js-001 至 js-065
-- React：react-001 至 react-065
-- 性能优化：perf-001 至 perf-050
-- 网络：net-001 至 net-060
-- CSS：css-001 至 css-055
-- TypeScript：ts-001 至 ts-055
-- 手写题：code-001 至 code-050
-- 项目深挖：proj-001 至 proj-050
+5. **高频标注**：高频考点的来源填"高频"，大厂题填公司名
 
 ## 输出格式
 
-**只输出一个完整的 JSON 数组，不要有任何其他文字、注释或说明。**
+**每道题用 \`---\` 分隔，严格按模板输出，不要有任何额外说明。**
 
-格式：
-\`\`\`json
-[
-  {
-    "id": "js-001",
-    "module": "JS基础",
-    "difficulty": 1,
-    "question": "题目",
-    "answer": "## 标题\\n\\n内容\\n\\n\`\`\`js\\ncode\\n\`\`\`",
-    "tags": ["标签"],
-    "source": "高频"
-  },
-  ...
-]
-\`\`\`
+---
+## <题目内容>
+**模块**: <模块名，从上方列表选>
+**难度**: 初级 | 中级 | 高级
+**标签**: 标签1, 标签2
+**来源**: 高频  ← 可选
 
-由于数量较多，建议分模块分批次生成，每次生成一个模块后立即输出完整 JSON。现在从 JS基础 模块开始：`,
+<完整答案，自由使用 Markdown：代码块、列表、小标题随意用>
+
+---
+
+由于数量较多，请分模块分批次生成，每次专注一个模块。现在从 **JS基础** 模块开始生成 65 道题：`,
 	},
 	{
 		id: "module",
 		icon: <IconList />,
 		title: "单模块深度生成",
-		description: "针对某一模块生成 60-80 道高质量题目",
+		description: "针对某一模块生成 60-80 道高质量题目，生成后转换器一键转 JSON",
 		prompt: buildBasePrompt(
 			"JS基础",
 			70,
-			"- 初级（difficulty: 1）：20 道，覆盖基础概念\n- 中级（difficulty: 2）：35 道，覆盖原理与应用\n- 高级（difficulty: 3）：15 道，覆盖底层实现与优化",
+			"- 初级：20 道，覆盖基础概念\n- 中级：35 道，覆盖原理与应用\n- 高级：15 道，覆盖底层实现与优化",
 			`覆盖以下子主题：
 - 变量声明（var/let/const）、作用域、变量提升、TDZ
 - 数据类型、类型检测、类型转换（隐式与显式）
@@ -297,37 +361,31 @@ ${MODULE_VALUES.map((m) => `- ${m}`).join("\n")}
 ## 我的项目描述
 
 [在此粘贴你的项目介绍，例如：]
-> 参与开发了一个大型电商平台，前端使用 React 18 + TypeScript + Vite，状态管理使用 Zustand，样式使用 Tailwind CSS。
+> 参与开发了一个大型电商平台，前端使用 React 18 + TypeScript + Vite，状态管理使用 Zustand。
 > 核心功能：商品列表虚拟滚动、购物车实时同步、订单支付流程、后台管理系统。
-> 遇到的挑战：首页白屏时间过长（后来通过 SSR 优化到 1.2s）、大量 API 并发导致的竞态条件问题。
+> 遇到的挑战：首页白屏时间过长（后来通过 SSR 优化到 1.2s）、大量 API 并发的竞态条件问题。
 
 ## 生成要求
 
-1. **紧扣项目**：所有题目必须与项目技术栈强相关，不要生成无关题目
-2. **深度追问**：模拟面试官"为什么这样做""遇到什么问题""如何解决"的思路
-3. **难度分布**：
-   - 10 道中级题（项目常见问题与解决方案）
-   - 15 道高级题（架构设计、性能优化、技术方案对比）
-   - 5 道挑战题（极端场景、系统设计）
-4. **答案要点**：答案提供面试时的回答要点和亮点，不需要完整展开
+1. **紧扣项目**：题目必须与项目技术栈强相关
+2. **深度追问**：模拟"为什么这样做""遇到什么问题""如何解决"的思路
+3. **难度分布**：中级 10 道 / 高级 15 道 / 挑战 5 道
+4. **答案要点**：提供面试时的回答要点和亮点
 
 ## 输出格式
 
-只输出 JSON 数组：
+**每道题用 \`---\` 分隔，严格按模板输出：**
 
-\`\`\`json
-[
-  {
-    "id": "proj-custom-001",
-    "module": "项目深挖",
-    "difficulty": 3,
-    "question": "你提到首页白屏时间过长，能详细说说你是如何排查和优化的吗？",
-    "answer": "## 排查过程\\n\\n1. 使用 Lighthouse 定位问题...\\n\\n## 优化方案\\n\\n...",
-    "tags": ["性能优化", "SSR", "白屏"],
-    "source": "项目深挖"
-  }
-]
-\`\`\`
+---
+## <题目内容>
+**模块**: 项目深挖
+**难度**: 中级 | 高级
+**标签**: 标签1, 标签2
+**来源**: 项目深挖
+
+<完整答案>
+
+---
 
 请根据我上面提供的项目信息生成题目：`,
 	},
@@ -335,51 +393,35 @@ ${MODULE_VALUES.map((m) => `- ${m}`).join("\n")}
 		id: "company",
 		icon: <IconBuilding />,
 		title: "大厂真题还原",
-		description: "还原字节、阿里、腾讯等大厂的高频面试题",
-		prompt: `你是一位曾在多家大型互联网公司参与前端面试的资深工程师。请还原以下公司的真实前端面试题，生成 60 道高质量面试题。
+		description: "还原字节、阿里、腾讯等大厂的高频面试题，生成后转换器转 JSON",
+		prompt: `你是一位曾在多家大型互联网公司参与前端面试的资深工程师。请还原真实前端面试题，生成 60 道高质量面试题。
 
 ## 覆盖公司
-- 字节跳动（15道）
-- 阿里巴巴/蚂蚁（12道）
-- 腾讯（12道）
-- 美团（10道）
-- 滴滴（11道）
+- 字节跳动（15道）：算法思维、JS 底层原理、大量手写题
+- 阿里巴巴/蚂蚁（12道）：工程化、架构设计、稳定性
+- 腾讯（12道）：基础扎实、TCP/IP 网络
+- 美团（10道）：业务场景、性能优化
+- 滴滴（11道）：移动端、跨端开发
 
 ## 要求
-
-1. **真实性**：题目必须是这些公司实际出现过的考点（或极高概率出现的题目）
-2. **针对性**：体现各公司的考察侧重点：
-   - 字节：算法思维强、注重 JS 底层原理、大量手写题
-   - 阿里：注重工程化、架构设计、稳定性
-   - 腾讯：注重基础扎实、TCP/IP 网络知识
-   - 美团：注重业务场景、性能优化
-   - 滴滴：注重移动端、跨端开发
-3. **来源标注**：source 字段写公司名，如"字节"、"阿里"、"腾讯"
-4. **难度分布**：以中高级为主（中级 40%，高级 60%）
-
-## 覆盖模块
-均匀分布在：JS基础、React、性能优化、网络、CSS、TypeScript、手写题、项目深挖
-
-## ID 规范
-格式：公司缩写-序号，如 byte-001、ali-001、tx-001、mt-001、dd-001
+- 来源字段填写公司名，如"字节"、"阿里"、"腾讯"
+- 难度以中高级为主（中级 40%，高级 60%）
+- 均匀分布在：JS基础、React、性能优化、网络、CSS、TypeScript、手写题、项目深挖
 
 ## 输出格式
 
-只输出 JSON 数组，不要有任何其他文字：
+**每道题用 \`---\` 分隔，严格按模板输出：**
 
-\`\`\`json
-[
-  {
-    "id": "byte-001",
-    "module": "JS基础",
-    "difficulty": 3,
-    "question": "...",
-    "answer": "...",
-    "tags": ["..."],
-    "source": "字节"
-  }
-]
-\`\`\`
+---
+## <题目内容>
+**模块**: <模块名>
+**难度**: 中级 | 高级
+**标签**: 标签1, 标签2
+**来源**: 字节 | 阿里 | 腾讯 | 美团 | 滴滴
+
+<完整答案>
+
+---
 
 开始生成：`,
 	},
@@ -387,11 +429,11 @@ ${MODULE_VALUES.map((m) => `- ${m}`).join("\n")}
 		id: "algorithm",
 		icon: <IconCode />,
 		title: "手写题专项",
-		description: "生成 50 道高质量手写代码题，含详细实现",
+		description: "生成 50 道高质量手写代码题，含详细实现，生成后转换器转 JSON",
 		prompt: buildBasePrompt(
 			"手写题",
 			50,
-			"- 初级（difficulty: 1）：10 道，基础 API 实现\n- 中级（difficulty: 2）：25 道，经典工具函数\n- 高级（difficulty: 3）：15 道，复杂数据结构与设计模式",
+			"- 初级：10 道，基础 API 实现\n- 中级：25 道，经典工具函数\n- 高级：15 道，复杂数据结构与设计模式",
 			`覆盖以下手写题类型：
 
 **工具函数（15道）**
@@ -718,10 +760,13 @@ function CustomBuilder({
 	};
 
 	const handleGenerate = () => {
+		const detail = diffDetail[diffPreset as keyof typeof diffDetail]
+			.replace(/（difficulty: \d）/g, "")
+			.replace(/difficulty: \d,\s*/g, "");
 		const prompt = buildBasePrompt(
 			module,
 			count,
-			diffDetail[diffPreset as keyof typeof diffDetail],
+			detail,
 			extraContext,
 		);
 		onGenerate(prompt);
@@ -923,10 +968,328 @@ function CustomBuilder({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+// ─── MD → JSON Converter Panel ───────────────────────────────────────────────
+
+function MdConverterPanel() {
+	const [mdInput, setMdInput] = useState("");
+	const [result, setResult] = useState<{
+		json: string;
+		count: number;
+		errors: string[];
+	} | null>(null);
+	const [copied, setCopied] = useState(false);
+
+	const handleConvert = useCallback(() => {
+		if (!mdInput.trim()) return;
+		const { questions, errors } = mdToQuestions(mdInput);
+		setResult({
+			json: JSON.stringify(questions, null, 2),
+			count: questions.length,
+			errors,
+		});
+		setCopied(false);
+	}, [mdInput]);
+
+	const handleCopy = useCallback(() => {
+		if (!result) return;
+		navigator.clipboard.writeText(result.json).then(() => {
+			setCopied(true);
+			setTimeout(() => setCopied(false), 2000);
+		});
+	}, [result]);
+
+	const handleDownload = useCallback(() => {
+		if (!result) return;
+		const blob = new Blob([result.json], { type: "application/json" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `questions-${new Date().toISOString().slice(0, 10)}.json`;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}, [result]);
+
+	return (
+		<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+			{/* Header */}
+			<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+				<div>
+					<p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>
+						Markdown → JSON 转换器
+					</p>
+					<p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 2 }}>
+						将 AI 输出的 Markdown 题目粘贴到左侧，点击转换后复制 JSON 导入题库
+					</p>
+				</div>
+			</div>
+
+			{/* Two columns: input + output */}
+			<div
+				style={{
+					display: "grid",
+					gridTemplateColumns: "1fr 1fr",
+					gap: 12,
+					alignItems: "start",
+				}}
+				className="converter-cols"
+			>
+				{/* Input */}
+				<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+						<span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>
+							AI 输出（Markdown）
+						</span>
+						{mdInput && (
+							<button
+								onClick={() => { setMdInput(""); setResult(null); }}
+								style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+							>
+								清空
+							</button>
+						)}
+					</div>
+					<textarea
+						value={mdInput}
+						onChange={(e) => setMdInput(e.target.value)}
+						placeholder={`粘贴 AI 生成的 Markdown，格式如：
+
+---
+## 请解释闭包的概念
+**模块**: JS基础
+**难度**: 中级
+**标签**: 闭包, 作用域
+
+闭包是指函数能够访问其词法作用域外部变量的特性...
+
+---
+## 下一道题...`}
+						style={{
+							width: "100%",
+							minHeight: 360,
+							padding: "12px",
+							borderRadius: 10,
+							border: "1px solid var(--border)",
+							background: "var(--surface-2)",
+							color: "var(--text)",
+							fontSize: 12,
+							fontFamily: "var(--font-mono)",
+							lineHeight: 1.6,
+							resize: "vertical",
+							outline: "none",
+						}}
+						onFocus={(e) => {
+							e.currentTarget.style.borderColor = "var(--primary)";
+							e.currentTarget.style.boxShadow = "0 0 0 3px var(--primary-light)";
+						}}
+						onBlur={(e) => {
+							e.currentTarget.style.borderColor = "var(--border)";
+							e.currentTarget.style.boxShadow = "none";
+						}}
+					/>
+					<button
+						onClick={handleConvert}
+						disabled={!mdInput.trim()}
+						style={{
+							padding: "9px 0",
+							borderRadius: 9,
+							border: "none",
+							background: mdInput.trim() ? "var(--primary)" : "var(--surface-3)",
+							color: mdInput.trim() ? "white" : "var(--text-3)",
+							fontSize: 13,
+							fontWeight: 600,
+							cursor: mdInput.trim() ? "pointer" : "default",
+							transition: "all 0.15s",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							gap: 6,
+						}}
+					>
+						<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+							<polyline points="16 18 22 12 16 6" />
+							<polyline points="8 6 2 12 8 18" />
+						</svg>
+						转换为 JSON
+					</button>
+				</div>
+
+				{/* Output */}
+				<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+					<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+						<span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>
+							JSON 结果
+							{result && (
+								<span style={{
+									marginLeft: 8,
+									fontSize: 11,
+									padding: "1px 6px",
+									borderRadius: 4,
+									background: "var(--success-light)",
+									color: "var(--success)",
+									border: "1px solid rgba(16,185,129,0.2)",
+								}}>
+									{result.count} 道题
+								</span>
+							)}
+						</span>
+						{result && (
+							<div style={{ display: "flex", gap: 6 }}>
+								<button
+									onClick={handleCopy}
+									style={{
+										fontSize: 11,
+										color: copied ? "var(--success)" : "var(--primary)",
+										background: copied ? "var(--success-light)" : "var(--primary-light)",
+										border: "none",
+										borderRadius: 5,
+										padding: "3px 8px",
+										cursor: "pointer",
+										display: "flex",
+										alignItems: "center",
+										gap: 4,
+										fontWeight: 500,
+									}}
+								>
+									{copied ? "✓ 已复制" : "复制 JSON"}
+								</button>
+								<button
+									onClick={handleDownload}
+									style={{
+										fontSize: 11,
+										color: "var(--text-2)",
+										background: "var(--surface-3)",
+										border: "none",
+										borderRadius: 5,
+										padding: "3px 8px",
+										cursor: "pointer",
+									}}
+								>
+									下载
+								</button>
+							</div>
+						)}
+					</div>
+
+					{result ? (
+						<>
+							{result.errors.length > 0 && (
+								<div style={{
+									padding: "8px 12px",
+									borderRadius: 8,
+									background: "var(--warning-light)",
+									border: "1px solid rgba(245,158,11,0.25)",
+									fontSize: 11,
+									color: "#92400e",
+								}}>
+									<p style={{ fontWeight: 600, marginBottom: 4 }}>⚠️ {result.errors.length} 个解析警告</p>
+									{result.errors.map((e, i) => (
+										<p key={i} style={{ opacity: 0.85, lineHeight: 1.5 }}>{e}</p>
+									))}
+								</div>
+							)}
+							<pre
+								style={{
+									minHeight: 360,
+									padding: "12px",
+									borderRadius: 10,
+									border: "1px solid var(--border-subtle)",
+									background: "var(--surface-2)",
+									color: "var(--text)",
+									fontSize: 11,
+									fontFamily: "var(--font-mono)",
+									lineHeight: 1.6,
+									overflow: "auto",
+									whiteSpace: "pre-wrap",
+									wordBreak: "break-word",
+									margin: 0,
+								}}
+							>
+								{result.json}
+							</pre>
+							<a
+								href="/import"
+								style={{
+									padding: "9px 0",
+									borderRadius: 9,
+									background: "var(--success)",
+									color: "white",
+									fontSize: 13,
+									fontWeight: 600,
+									textDecoration: "none",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									gap: 6,
+									transition: "opacity 0.15s",
+								}}
+								onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.88"; }}
+								onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+							>
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+									<polyline points="17 8 12 3 7 8" />
+									<line x1="12" y1="3" x2="12" y2="15" />
+								</svg>
+								前往导入题库
+							</a>
+						</>
+					) : (
+						<div style={{
+							minHeight: 360,
+							borderRadius: 10,
+							border: "1px dashed var(--border)",
+							display: "flex",
+							flexDirection: "column",
+							alignItems: "center",
+							justifyContent: "center",
+							gap: 8,
+							color: "var(--text-3)",
+							padding: 24,
+							textAlign: "center",
+						}}>
+							<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+								<polyline points="16 18 22 12 16 6" />
+								<polyline points="8 6 2 12 8 18" />
+							</svg>
+							<p style={{ fontSize: 12 }}>在左侧粘贴 AI 输出后点击「转换为 JSON」</p>
+						</div>
+					)}
+				</div>
+			</div>
+
+			{/* Format guide */}
+			<div style={{
+				padding: "12px 16px",
+				borderRadius: 10,
+				background: "var(--surface-2)",
+				border: "1px solid var(--border-subtle)",
+				fontSize: 12,
+				color: "var(--text-2)",
+				lineHeight: 1.6,
+			}}>
+				<p style={{ fontWeight: 600, color: "var(--text)", marginBottom: 6 }}>📋 Markdown 格式说明</p>
+				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 24px" }} className="format-guide-grid">
+					<span>• 每题以 <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: "var(--surface-3)" }}>---</code> 分隔</span>
+					<span>• 题目以 <code style={{ fontSize: 11, padding: "1px 4px", borderRadius: 3, background: "var(--surface-3)" }}>## 题目内容</code> 开头</span>
+					<span>• <strong>模块</strong> 字段自动映射（js/react/css/ts/网络/性能/手写/项目）</span>
+					<span>• <strong>难度</strong> 支持：初级/中级/高级</span>
+					<span>• <strong>标签</strong> 用逗号或顿号分隔</span>
+					<span>• <strong>来源</strong> 可选，如"高频"、"字节"</span>
+					<span>• ID 未填时自动生成（模块前缀-序号）</span>
+					<span>• 答案为 meta 字段之后的所有 Markdown 内容</span>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function PromptPage() {
 	const [selectedPreset, setSelectedPreset] = useState<string>("full");
 	const [customPrompt, setCustomPrompt] = useState<string | null>(null);
 	const [activeTab, setActiveTab] = useState<"presets" | "custom">("presets");
+	const [rightTab, setRightTab] = useState<"preview" | "converter">("preview");
 
 	const currentPreset = PRESETS.find((p) => p.id === selectedPreset);
 	const displayPrompt =
@@ -1049,6 +1412,47 @@ export default function PromptPage() {
 					className="animate-fade-in stagger-2"
 					style={{ position: "sticky", top: "calc(var(--navbar-h) + 20px)" }}
 				>
+					{/* Right panel tab switcher */}
+					<div style={{
+						display: "flex",
+						gap: 4,
+						padding: 4,
+						background: "var(--surface-2)",
+						borderRadius: 12,
+						marginBottom: 12,
+					}}>
+						{([
+							{ key: "preview", label: "Prompt 预览" },
+							{ key: "converter", label: "MD → JSON 转换器" },
+						] as const).map(({ key, label }) => {
+							const active = rightTab === key;
+							return (
+								<button
+									key={key}
+									onClick={() => setRightTab(key)}
+									style={{
+										flex: 1,
+										padding: "6px 10px",
+										borderRadius: 9,
+										fontSize: 12,
+										fontWeight: active ? 600 : 400,
+										color: active ? "var(--text)" : "var(--text-3)",
+										background: active ? "var(--surface)" : "transparent",
+										border: "none",
+										cursor: "pointer",
+										boxShadow: active ? "var(--shadow-sm)" : "none",
+										transition: "all 0.15s",
+									}}
+								>
+									{label}
+								</button>
+							);
+						})}
+					</div>
+
+					{rightTab === "converter" ? (
+						<MdConverterPanel />
+					) : (
 					<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 						{/* Preview header */}
 						<div
@@ -1167,27 +1571,15 @@ export default function PromptPage() {
 									gap: 10,
 								}}
 							>
-								<p
-									style={{
-										fontSize: 12,
-										fontWeight: 600,
-										color: "var(--text)",
-									}}
-								>
+								<p style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>
 									使用步骤
 								</p>
-								<ol
-									style={{
-										display: "flex",
-										flexDirection: "column",
-										gap: 8,
-									}}
-								>
+								<ol style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 									{[
-										"点击「复制」按钮，将 Prompt 粘贴到 GPT-4o / Claude / Gemini",
-										"等待 AI 生成 JSON 数组（通常需要 1-3 分钟）",
-										"复制 AI 输出的 JSON，前往「导入题目」页面粘贴导入",
-										"iFace 自动校验格式，有效题目直接入库，错误行单独报告",
+										"复制 Prompt，粘贴到 GPT-4o / Claude / Gemini 等 AI",
+										"AI 生成 Markdown 格式题目（比 JSON 更稳定，少出错）",
+										"复制 AI 输出，切换到「MD → JSON 转换器」粘贴转换",
+										"复制转换后的 JSON，前往「导入题目」页面一键导入",
 									].map((step, i) => (
 										<li
 											key={i}
@@ -1224,6 +1616,7 @@ export default function PromptPage() {
 							</div>
 						)}
 					</div>
+					)}
 				</div>
 			</div>
 
@@ -1430,6 +1823,12 @@ export default function PromptPage() {
 					}
 					.tips-grid {
 						grid-template-columns: 1fr 1fr !important;
+					}
+					.converter-cols {
+						grid-template-columns: 1fr !important;
+					}
+					.format-guide-grid {
+						grid-template-columns: 1fr !important;
 					}
 				}
 				@media (max-width: 480px) {

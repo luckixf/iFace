@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	Link,
 	useNavigate,
@@ -8,7 +8,7 @@ import {
 import { AIPanelWithStyles } from "@/components/ui/AIPanel";
 import { Button, Kbd, Skeleton, Spinner } from "@/components/ui";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
-import { useQuestion } from "@/hooks/useQuestions";
+import { useQuestion, useQuestions } from "@/hooks/useQuestions";
 import { useAIStore } from "@/store/useAIStore";
 import { useStudyStore, clearSessionReview } from "@/store/useStudyStore";
 
@@ -855,6 +855,7 @@ export default function QuestionDetail() {
 	const navigate = useNavigate();
 
 	const { question, loading } = useQuestion(id);
+	const { allQuestions } = useQuestions();
 	const { getStatus, setStatus, getRecord, studyMode, streak, incrementStreak } = useStudyStore();
 	const { config: aiConfig } = useAIStore();
 
@@ -871,14 +872,31 @@ export default function QuestionDetail() {
 	const sessionIds = searchParams.get("ids")?.split(",").filter(Boolean) ?? [];
 	const isInSession = sessionIds.length > 0;
 	const sessionIndex = isInSession ? sessionIds.indexOf(id ?? "") : -1;
+
+	// Adjacent IDs from the full question list (for non-session browsing)
+	// Sorted same as default list order (insertion order = file order by id)
+	const { prevIdByList, nextIdByList } = useMemo(() => {
+		if (!id || allQuestions.length === 0) return { prevIdByList: null, nextIdByList: null };
+		// Filter to same module so ← → stays within module context
+		const sameModule = question
+			? allQuestions.filter((q) => q.module === question.module)
+			: allQuestions;
+		const idx = sameModule.findIndex((q) => q.id === id);
+		if (idx === -1) return { prevIdByList: null, nextIdByList: null };
+		return {
+			prevIdByList: idx > 0 ? sameModule[idx - 1].id : null,
+			nextIdByList: idx < sameModule.length - 1 ? sameModule[idx + 1].id : null,
+		};
+	}, [id, allQuestions, question]);
+
 	const prevId =
 		isInSession && sessionIndex > 0
 			? sessionIds[sessionIndex - 1]
-			: searchParams.get("prev");
+			: searchParams.get("prev") ?? prevIdByList;
 	const nextId =
 		isInSession && sessionIndex < sessionIds.length - 1
 			? sessionIds[sessionIndex + 1]
-			: searchParams.get("next");
+			: searchParams.get("next") ?? nextIdByList;
 	const sessionCurrent = sessionIndex + 1;
 	const sessionTotal = sessionIds.length;
 
@@ -1485,10 +1503,54 @@ export default function QuestionDetail() {
 					80%  { transform: translate(-50%, -50%) scale(1); opacity: 1; }
 					100% { opacity: 0; transform: translate(-50%, -60%) scale(0.9); }
 				}
+				@media (max-width: 1023px) {
+					.ai-fab { display: flex !important; }
+				}
 				@media (min-width: 1024px) {
 					.ai-drawer-backdrop { display: none !important; }
 				}
 			`}</style>
+			{/* ── Mobile FAB: AI Assistant ── */}
+			{!aiDrawerOpen && (
+				<button
+					onClick={() => setAiDrawerOpen(true)}
+					className="ai-fab"
+					style={{
+						position: "fixed",
+						bottom: 24,
+						right: 20,
+						zIndex: 140,
+						width: 52,
+						height: 52,
+						borderRadius: "50%",
+						border: "none",
+						background: isAiEnabled ? "var(--primary)" : "var(--surface-3)",
+						color: isAiEnabled ? "white" : "var(--text-3)",
+						boxShadow: isAiEnabled
+							? "0 4px 16px rgba(var(--primary-rgb), 0.45), 0 2px 6px rgba(0,0,0,0.12)"
+							: "var(--shadow-md)",
+						cursor: "pointer",
+						display: "none",
+						alignItems: "center",
+						justifyContent: "center",
+						transition: "transform 0.18s var(--ease-spring), box-shadow 0.18s",
+					}}
+					onMouseEnter={(e) => {
+						(e.currentTarget as HTMLElement).style.transform = "scale(1.08)";
+					}}
+					onMouseLeave={(e) => {
+						(e.currentTarget as HTMLElement).style.transform = "scale(1)";
+					}}
+					title={isAiEnabled ? "打开 AI 助手" : "AI 助手（请先配置）"}
+				>
+					<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+						<path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2z" />
+						<circle cx="7.5" cy="14.5" r="1.5" />
+						<circle cx="16.5" cy="14.5" r="1.5" />
+					</svg>
+				</button>
+			)}
+
 		</>
 	);
 }

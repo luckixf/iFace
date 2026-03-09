@@ -1,12 +1,19 @@
-export type Module =
-	| "JS基础"
-	| "React"
-	| "性能优化"
-	| "网络"
-	| "CSS"
-	| "TypeScript"
-	| "手写题"
-	| "项目深挖";
+// Built-in frontend modules (used for icon/color mapping & default filter UI)
+export const BUILTIN_MODULES = [
+	"JS基础",
+	"React",
+	"性能优化",
+	"网络",
+	"CSS",
+	"TypeScript",
+	"手写题",
+	"项目深挖",
+] as const;
+
+export type BuiltinModule = (typeof BUILTIN_MODULES)[number];
+
+// Module is now open — any string is valid, enabling custom topics like Golang, Java, etc.
+export type Module = string;
 
 export type Difficulty = 1 | 2 | 3;
 
@@ -45,16 +52,8 @@ export interface PracticeSession {
 	currentIndex: number;
 }
 
-export const MODULE_LIST: Module[] = [
-	"JS基础",
-	"React",
-	"性能优化",
-	"网络",
-	"CSS",
-	"TypeScript",
-	"手写题",
-	"项目深挖",
-];
+// Static built-in list (for sidebar defaults when no custom modules are imported)
+export const MODULE_LIST: Module[] = [...BUILTIN_MODULES];
 
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
 	1: "初级",
@@ -100,7 +99,7 @@ export const STATUS_STYLES: Record<
 	review:    { color: "#f59e0b", background: "rgba(245,158,11,0.1)",  borderColor: "rgba(245,158,11,0.2)" },
 };
 
-export const MODULE_ICONS: Record<Module, string> = {
+export const MODULE_ICONS: Record<string, string> = {
 	JS基础: "⚡",
 	React: "⚛️",
 	性能优化: "🚀",
@@ -109,9 +108,26 @@ export const MODULE_ICONS: Record<Module, string> = {
 	TypeScript: "🔷",
 	手写题: "✍️",
 	项目深挖: "🔍",
+	// Common custom modules
+	Golang: "🐹",
+	Java: "☕",
+	Python: "🐍",
+	Rust: "🦀",
+	"Node.js": "🟢",
+	数据库: "🗄️",
+	算法: "📐",
+	系统设计: "🏗️",
+	DevOps: "⚙️",
+	Android: "🤖",
+	iOS: "🍎",
 };
 
-export const MODULE_COLORS: Record<Module, string> = {
+// Fallback icon for any unknown module
+export function getModuleIcon(module: string): string {
+	return MODULE_ICONS[module] ?? "📚";
+}
+
+export const MODULE_COLORS: Record<string, string> = {
 	JS基础: "from-yellow-400 to-orange-500",
 	React: "from-cyan-400 to-blue-500",
 	性能优化: "from-green-400 to-emerald-500",
@@ -120,4 +136,27 @@ export const MODULE_COLORS: Record<Module, string> = {
 	TypeScript: "from-blue-400 to-indigo-500",
 	手写题: "from-amber-400 to-yellow-500",
 	项目深挖: "from-teal-400 to-cyan-500",
+	Golang: "from-sky-400 to-cyan-500",
+	Java: "from-orange-400 to-red-500",
+	Python: "from-blue-400 to-yellow-500",
+	Rust: "from-orange-500 to-red-600",
+	"Node.js": "from-green-400 to-lime-500",
+	数据库: "from-indigo-400 to-blue-600",
+	算法: "from-purple-400 to-fuchsia-500",
+	系统设计: "from-slate-400 to-gray-600",
+	DevOps: "from-teal-400 to-emerald-500",
 };
+
+// Stable hash-based color palette for unknown modules
+const _paletteColors = [
+	"#6366f1", "#8b5cf6", "#ec4899", "#f59e0b", "#10b981",
+	"#3b82f6", "#14b8a6", "#f97316", "#84cc16", "#06b6d4",
+];
+
+export function getModuleColor(module: string): string {
+	let hash = 0;
+	for (let i = 0; i < module.length; i++) {
+		hash = (hash * 31 + module.charCodeAt(i)) >>> 0;
+	}
+	return _paletteColors[hash % _paletteColors.length];
+}

@@ -1,15 +1,7 @@
 import { z } from "zod";
 
-export const ModuleSchema = z.enum([
-	"JS基础",
-	"React",
-	"性能优化",
-	"网络",
-	"CSS",
-	"TypeScript",
-	"手写题",
-	"项目深挖",
-]);
+// Accept any non-empty string so users can import custom topics (Golang, Java, etc.)
+export const ModuleSchema = z.string().min(1);
 
 export const DifficultySchema = z.union([
 	z.literal(1),
