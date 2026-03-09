@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuthStore } from "@/store/useAuthStore";
+import { pushToGist, pullFromGist, deleteBackupGist } from "@/lib/gistSync";
+import { invalidateQuestionsCache } from "@/hooks/useQuestions";
 import {
 	type AIConfig,
 	DEFAULT_AI_CONFIG,
@@ -323,11 +326,12 @@ interface SettingsDrawerProps {
 	onClose: () => void;
 }
 
-type Tab = "ai" | "study" | "data";
+type Tab = "ai" | "study" | "data" | "sync";
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 	const { config, updateConfig, resetConfig, clearAllSessions } = useAIStore();
 	const { resetAll, studyMode, setStudyMode, streak, resetStreak, dailyGoal, setDailyGoal } = useStudyStore();
+	const { token, user, isLoggedIn, loading: authLoading, login, logout } = useAuthStore();
 
 	const [tab, setTab] = useState<Tab>("ai");
 	const [localConfig, setLocalConfig] = useState<AIConfig>({ ...config });
@@ -342,6 +346,11 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 	const [exporting, setExporting] = useState(false);
 	const [testing, setTesting] = useState(false);
 	const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+	const [syncPushing, setSyncPushing] = useState(false);
+	const [syncPulling, setSyncPulling] = useState(false);
+	const [syncDeleting, setSyncDeleting] = useState(false);
+	const [lastSyncResult, setLastSyncResult] = useState<{ ok: boolean; message: string; at?: string } | null>(null);
+	const [autoSynced, setAutoSynced] = useState(false);
 
 	const importRef = useRef<HTMLInputElement>(null);
 	const drawerRef = useRef<HTMLDivElement>(null);
@@ -365,6 +374,23 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 			);
 		}
 	}, [open, tab]);
+
+	// Auto-pull from Gist once per session after login
+	useEffect(() => {
+		if (!isLoggedIn || !token || autoSynced) return;
+		setAutoSynced(true);
+		pullFromGist(token).then((result) => {
+			if (result === null) return; // no backup yet
+			if (result.ok) {
+				invalidateQuestionsCache();
+				setLastSyncResult({
+					ok: true,
+					message: `已自动从云端恢复 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目`,
+					at: result.exportedAt,
+				});
+			}
+		});
+	}, [isLoggedIn, token, autoSynced]);
 
 	// Keyboard close
 	useEffect(() => {
@@ -690,18 +716,25 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 						flexShrink: 0,
 					}}
 				>
-					{(["ai", "study", "data"] as Tab[]).map((t) => {
-						const labels: Record<Tab, string> = { ai: "AI 助手", study: "刷题偏好", data: "数据管理" };
-						const icons: Record<Tab, React.ReactNode> = {
-							ai: <IconAI />,
-							study: (
-								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-									<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-									<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-								</svg>
-							),
-							data: <IconData />,
-						};
+					{(["ai", "study", "data", "sync"] as Tab[]).map((t) => {
+							const labels: Record<Tab, string> = { ai: "AI 助手", study: "刷题偏好", data: "数据管理", sync: "云同步" };
+							const icons: Record<Tab, React.ReactNode> = {
+								ai: <IconAI />,
+								study: (
+									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+										<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+									</svg>
+								),
+								data: <IconData />,
+								sync: (
+									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<polyline points="23 4 23 10 17 10" />
+										<polyline points="1 20 1 14 7 14" />
+										<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+									</svg>
+								),
+							};
 						const active = tab === t;
 						return (
 							<button
@@ -1249,6 +1282,364 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 									清除
 								</button>
 							</div>
+						</>
+					)}
+
+					{/* ── Sync Tab ── */}
+					{tab === "sync" && (
+						<>
+							<SectionHeader
+								icon={
+									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<polyline points="23 4 23 10 17 10" />
+										<polyline points="1 20 1 14 7 14" />
+										<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+									</svg>
+								}
+								title="云同步"
+							/>
+
+							{/* Not logged in */}
+							{!isLoggedIn && (
+								<div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+									<div
+										style={{
+											padding: "20px 16px",
+											borderRadius: 12,
+											background: "var(--surface-2)",
+											border: "1px solid var(--border-subtle)",
+											textAlign: "center",
+											display: "flex",
+											flexDirection: "column",
+											alignItems: "center",
+											gap: 12,
+										}}
+									>
+										<div
+											style={{
+												width: 48,
+												height: 48,
+												borderRadius: "50%",
+												background: "var(--surface-3)",
+												display: "flex",
+												alignItems: "center",
+												justifyContent: "center",
+												color: "var(--text-3)",
+											}}
+										>
+											<IconGitHub />
+										</div>
+										<div>
+											<p style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", marginBottom: 4 }}>
+												使用 GitHub 账号同步进度
+											</p>
+											<p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.6 }}>
+												学习进度和自定义题库将备份到你的 GitHub 私人 Gist，多端同步，不怕丢失
+											</p>
+										</div>
+										<button
+											onClick={login}
+											disabled={authLoading}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: 8,
+												padding: "9px 20px",
+												borderRadius: 10,
+												border: "none",
+												background: "var(--text)",
+												color: "var(--surface)",
+												fontSize: 13,
+												fontWeight: 600,
+												cursor: authLoading ? "default" : "pointer",
+												transition: "opacity 0.15s",
+												opacity: authLoading ? 0.6 : 1,
+											}}
+										>
+											<IconGitHub />
+											{authLoading ? "跳转中…" : "用 GitHub 登录"}
+										</button>
+									</div>
+
+									{/* Feature list */}
+									<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+										{[
+											{ icon: "☁️", text: "备份到私人 Gist，仅自己可见" },
+											{ icon: "📱", text: "多设备自动同步学习进度" },
+											{ icon: "🔒", text: "仅申请 gist 权限，不读写代码仓库" },
+											{ icon: "⚡", text: "登录后自动拉取上次备份" },
+										].map(({ icon, text }) => (
+											<div key={text} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, background: "var(--surface-2)" }}>
+												<span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+												<span style={{ fontSize: 12, color: "var(--text-2)" }}>{text}</span>
+											</div>
+										))}
+									</div>
+								</div>
+							)}
+
+							{/* Logged in */}
+							{isLoggedIn && user && (
+								<div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+									{/* User card */}
+									<div
+										style={{
+											display: "flex",
+											alignItems: "center",
+											gap: 12,
+											padding: "12px 14px",
+											borderRadius: 12,
+											background: "var(--surface-2)",
+											border: "1px solid var(--border-subtle)",
+										}}
+									>
+										<img
+											src={user.avatar_url}
+											alt={user.login}
+											style={{
+												width: 40,
+												height: 40,
+												borderRadius: "50%",
+												flexShrink: 0,
+												border: "2px solid var(--border)",
+											}}
+										/>
+										<div style={{ flex: 1, minWidth: 0 }}>
+											<p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+												{user.name || user.login}
+											</p>
+											<p style={{ fontSize: 11, color: "var(--text-3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+												@{user.login}
+											</p>
+										</div>
+										<button
+											onClick={logout}
+											style={{
+												flexShrink: 0,
+												padding: "4px 10px",
+												borderRadius: 7,
+												border: "1px solid var(--border)",
+												background: "transparent",
+												color: "var(--text-3)",
+												fontSize: 11,
+												cursor: "pointer",
+												transition: "all 0.15s",
+											}}
+											onMouseEnter={(e) => {
+												(e.currentTarget as HTMLElement).style.color = "var(--danger)";
+												(e.currentTarget as HTMLElement).style.borderColor = "rgba(239,68,68,0.3)";
+											}}
+											onMouseLeave={(e) => {
+												(e.currentTarget as HTMLElement).style.color = "var(--text-3)";
+												(e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+											}}
+										>
+											退出
+										</button>
+									</div>
+
+									{/* Last sync result banner */}
+									{lastSyncResult && (
+										<div
+											style={{
+												padding: "10px 12px",
+												borderRadius: 10,
+												background: lastSyncResult.ok ? "var(--success-light, rgba(16,185,129,0.08))" : "var(--danger-light, rgba(239,68,68,0.08))",
+												border: `1px solid ${lastSyncResult.ok ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+												display: "flex",
+												alignItems: "flex-start",
+												gap: 8,
+											}}
+										>
+											<span style={{ fontSize: 14, flexShrink: 0 }}>{lastSyncResult.ok ? "✅" : "❌"}</span>
+											<div style={{ flex: 1, minWidth: 0 }}>
+												<p style={{ fontSize: 12, color: lastSyncResult.ok ? "var(--success)" : "var(--danger)", lineHeight: 1.5 }}>
+													{lastSyncResult.message}
+												</p>
+												{lastSyncResult.at && (
+													<p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2 }}>
+														备份时间：{new Date(lastSyncResult.at).toLocaleString("zh-CN")}
+													</p>
+												)}
+											</div>
+											<button
+												onClick={() => setLastSyncResult(null)}
+												style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-3)", padding: 0, flexShrink: 0 }}
+											>
+												<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+											</button>
+										</div>
+									)}
+
+									{/* Sync actions */}
+									<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+										{/* Push */}
+										<button
+											onClick={async () => {
+												if (!token) return;
+												setSyncPushing(true);
+												setLastSyncResult(null);
+												const result = await pushToGist(token);
+												setSyncPushing(false);
+												setLastSyncResult({
+													ok: result.ok,
+													message: result.ok
+														? `已备份 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目`
+														: `备份失败：${result.error}`,
+													at: result.exportedAt,
+												});
+											}}
+											disabled={syncPushing || syncPulling}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: 10,
+												padding: "12px 14px",
+												borderRadius: 10,
+												border: "1px solid var(--border)",
+												background: "var(--surface)",
+												cursor: syncPushing || syncPulling ? "default" : "pointer",
+												opacity: syncPushing || syncPulling ? 0.6 : 1,
+												transition: "all 0.15s",
+												textAlign: "left",
+											}}
+											onMouseEnter={(e) => {
+												if (!syncPushing && !syncPulling) {
+													(e.currentTarget as HTMLElement).style.borderColor = "rgba(var(--primary-rgb),0.4)";
+													(e.currentTarget as HTMLElement).style.background = "var(--surface-2)";
+												}
+											}}
+											onMouseLeave={(e) => {
+												(e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+												(e.currentTarget as HTMLElement).style.background = "var(--surface)";
+											}}
+										>
+											<div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--primary-light)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary)", flexShrink: 0 }}>
+												{syncPushing ? (
+													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+												) : (
+													<IconUpload />
+												)}
+											</div>
+											<div style={{ flex: 1, minWidth: 0 }}>
+												<p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{syncPushing ? "备份中…" : "备份到云端"}</p>
+												<p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 1 }}>将本地进度和题库上传到 GitHub Gist</p>
+											</div>
+										</button>
+
+										{/* Pull */}
+										<button
+											onClick={async () => {
+												if (!token) return;
+												if (!confirm("确定要从云端恢复数据吗？这将覆盖本地学习记录。")) return;
+												setSyncPulling(true);
+												setLastSyncResult(null);
+												const result = await pullFromGist(token);
+												setSyncPulling(false);
+												if (result === null) {
+													setLastSyncResult({ ok: false, message: "云端暂无备份，请先执行「备份到云端」" });
+												} else {
+													if (result.ok) invalidateQuestionsCache();
+													setLastSyncResult({
+														ok: result.ok,
+														message: result.ok
+															? `已恢复 ${result.recordCount ?? 0} 条学习记录、${result.questionCount ?? 0} 道自定义题目`
+															: `恢复失败：${result.error}`,
+														at: result.exportedAt,
+													});
+												}
+											}}
+											disabled={syncPushing || syncPulling}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: 10,
+												padding: "12px 14px",
+												borderRadius: 10,
+												border: "1px solid var(--border)",
+												background: "var(--surface)",
+												cursor: syncPushing || syncPulling ? "default" : "pointer",
+												opacity: syncPushing || syncPulling ? 0.6 : 1,
+												transition: "all 0.15s",
+												textAlign: "left",
+											}}
+											onMouseEnter={(e) => {
+												if (!syncPushing && !syncPulling) {
+													(e.currentTarget as HTMLElement).style.borderColor = "rgba(var(--primary-rgb),0.4)";
+													(e.currentTarget as HTMLElement).style.background = "var(--surface-2)";
+												}
+											}}
+											onMouseLeave={(e) => {
+												(e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+												(e.currentTarget as HTMLElement).style.background = "var(--surface)";
+											}}
+										>
+											<div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--surface-3)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-2)", flexShrink: 0 }}>
+												{syncPulling ? (
+													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" style={{ animation: "spin 1s linear infinite" }}><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg>
+												) : (
+													<IconDownload />
+												)}
+											</div>
+											<div style={{ flex: 1, minWidth: 0 }}>
+												<p style={{ fontSize: 13, fontWeight: 500, color: "var(--text)" }}>{syncPulling ? "恢复中…" : "从云端恢复"}</p>
+												<p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 1 }}>从 GitHub Gist 拉取最新备份到本地</p>
+											</div>
+										</button>
+									</div>
+
+									{/* Danger zone */}
+									<div
+										style={{
+											padding: "12px 14px",
+											borderRadius: 10,
+											border: "1px solid rgba(239,68,68,0.15)",
+											background: "rgba(239,68,68,0.03)",
+										}}
+									>
+										<p style={{ fontSize: 11, fontWeight: 600, color: "var(--danger, #ef4444)", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+											危险操作
+										</p>
+										<button
+											onClick={async () => {
+												if (!token) return;
+												if (!confirm("确定要删除云端备份 Gist 吗？此操作不可撤销，本地数据不受影响。")) return;
+												setSyncDeleting(true);
+												const result = await deleteBackupGist(token);
+												setSyncDeleting(false);
+												setLastSyncResult({
+													ok: result.ok,
+													message: result.ok ? "云端备份已删除" : `删除失败：${result.error}`,
+												});
+											}}
+											disabled={syncDeleting}
+											style={{
+												display: "flex",
+												alignItems: "center",
+												gap: 6,
+												padding: "6px 12px",
+												borderRadius: 8,
+												border: "1px solid rgba(239,68,68,0.3)",
+												background: "transparent",
+												color: "var(--danger, #ef4444)",
+												fontSize: 12,
+												cursor: syncDeleting ? "default" : "pointer",
+												opacity: syncDeleting ? 0.6 : 1,
+												transition: "all 0.15s",
+											}}
+											onMouseEnter={(e) => {
+												if (!syncDeleting) (e.currentTarget as HTMLElement).style.background = "rgba(239,68,68,0.08)";
+											}}
+											onMouseLeave={(e) => {
+												(e.currentTarget as HTMLElement).style.background = "transparent";
+											}}
+										>
+											<IconTrash />
+											{syncDeleting ? "删除中…" : "删除云端备份 Gist"}
+										</button>
+									</div>
+								</div>
+							)}
 						</>
 					)}
 

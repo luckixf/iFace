@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { SettingsDrawer } from "@/components/layout/SettingsDrawer";
 import { useStudyStore } from "@/store/useStudyStore";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const navItems = [
 	{ path: "/", label: "概览" },
@@ -15,6 +16,7 @@ const navItems = [
 export function Navbar() {
 	const location = useLocation();
 	const { theme, toggleTheme } = useStudyStore();
+	const { user, isLoggedIn, login } = useAuthStore();
 	const [scrolled, setScrolled] = useState(false);
 	const [mobileOpen, setMobileOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
@@ -159,6 +161,63 @@ export function Navbar() {
 							flexShrink: 0,
 						}}
 					>
+						{/* GitHub login / avatar button */}
+						<button
+							onClick={() => {
+								if (isLoggedIn) {
+									setSettingsOpen(true);
+								} else {
+									login();
+								}
+							}}
+							aria-label={isLoggedIn ? `已登录：${user?.login}` : "GitHub 登录"}
+							title={isLoggedIn ? `@${user?.login}（点击进入设置）` : "用 GitHub 登录同步进度"}
+							style={{
+								width: 32,
+								height: 32,
+								borderRadius: isLoggedIn ? "50%" : 8,
+								border: isLoggedIn ? "2px solid var(--border)" : "none",
+								background: "transparent",
+								padding: 0,
+								color: "var(--text-2)",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								cursor: "pointer",
+								transition: "opacity 0.15s, border-color 0.15s",
+								overflow: "hidden",
+								flexShrink: 0,
+							}}
+							onMouseEnter={(e) => {
+								if (isLoggedIn) {
+									(e.currentTarget as HTMLElement).style.borderColor = "var(--primary)";
+								} else {
+									(e.currentTarget as HTMLElement).style.background = "var(--surface-2)";
+									(e.currentTarget as HTMLElement).style.color = "var(--text)";
+								}
+							}}
+							onMouseLeave={(e) => {
+								if (isLoggedIn) {
+									(e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+								} else {
+									(e.currentTarget as HTMLElement).style.background = "transparent";
+									(e.currentTarget as HTMLElement).style.color = "var(--text-2)";
+								}
+							}}
+						>
+							{isLoggedIn && user ? (
+								<img
+									src={user.avatar_url}
+									alt={user.login}
+									style={{ width: "100%", height: "100%", objectFit: "cover" }}
+								/>
+							) : (
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+									<path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+								</svg>
+							)}
+						</button>
+
 						{/* Settings button */}
 						<button
 							onClick={() => setSettingsOpen(true)}

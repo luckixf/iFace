@@ -8,7 +8,6 @@ import {
 	DIFFICULTY_LABELS,
 	DIFFICULTY_STYLES,
 	type Difficulty,
-	getModuleIcon,
 	type Module,
 	STATUS_LABELS,
 	STATUS_STYLES,
@@ -182,6 +181,18 @@ function FilterPanel({
 								>
 									{mod}
 								</span>
+								{isCustom && (
+									<span style={{
+										fontSize: 9,
+										padding: "1px 4px",
+										borderRadius: 3,
+										background: active ? "rgba(255,255,255,0.2)" : "var(--surface-3)",
+										color: active ? "rgba(255,255,255,0.8)" : "var(--text-3)",
+										flexShrink: 0,
+									}}>
+										自定义
+									</span>
+								)}
 								{active && (
 									<svg
 										width="12"
@@ -197,20 +208,6 @@ function FilterPanel({
 										<polyline points="20 6 9 17 4 12" />
 									</svg>
 								)}
-							<span>{getModuleIcon(mod)}</span>
-							<span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mod}</span>
-							{isCustom && (
-								<span style={{
-									fontSize: 9,
-									padding: "1px 4px",
-									borderRadius: 3,
-									background: active ? "rgba(255,255,255,0.2)" : "var(--surface-3)",
-									color: active ? "rgba(255,255,255,0.8)" : "var(--text-3)",
-									flexShrink: 0,
-								}}>
-									自定义
-								</span>
-							)}
 						</button>
 					);
 				})}

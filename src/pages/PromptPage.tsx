@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from "react";
 import { Badge, Button } from "@/components/ui";
 
-const MODULE_VALUES = [
+// The 8 built-in frontend modules — used in preset prompts
+const BUILTIN_MODULE_VALUES = [
 	"JS基础",
 	"React",
 	"性能优化",
@@ -10,7 +11,11 @@ const MODULE_VALUES = [
 	"TypeScript",
 	"手写题",
 	"项目深挖",
-	// Common custom modules shown as datalist suggestions
+];
+
+// All suggestions shown in the CustomBuilder dropdown (builtin + common custom)
+const MODULE_SUGGESTIONS = [
+	...BUILTIN_MODULE_VALUES,
 	"Golang",
 	"Java",
 	"Python",
@@ -308,7 +313,7 @@ const PRESETS: PromptPreset[] = [
 分 8 个模块，每个模块生成 60-75 道题，总计约 500-600 道题。
 
 ## 模块列表
-${MODULE_VALUES.map((m) => `- ${m}`).join("\n")}
+${BUILTIN_MODULE_VALUES.map((m) => `- ${m}`).join("\n")}
 
 ## 难度分布（每个模块内）
 - 初级（难度：初级）：占 30%，约 18-22 道
@@ -775,7 +780,7 @@ function CustomBuilder({
 		return () => document.removeEventListener("mousedown", handler);
 	}, [moduleDropdownOpen]);
 
-	const filteredModules = MODULE_VALUES.filter((m) =>
+	const filteredModules = MODULE_SUGGESTIONS.filter((m) =>
 		m.toLowerCase().includes(module.toLowerCase()),
 	);
 
