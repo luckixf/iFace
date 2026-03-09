@@ -15,21 +15,17 @@
 
 ---
 
-## 截图
+## 预览
 
-> 📸 截图待补充
+https://face.dogxi.me
 
-建议截图尺寸：1280×800，放入 docs/screenshots/ 目录 -->
-
-<!--
 <div align="center">
-  <img src="docs/screenshots/dashboard.png" alt="概览页" width="49%" />
-  <img src="docs/screenshots/practice.png" alt="练习页" width="49%" />
+  <img src="docs/screenshots/dashboard.webp" alt="概览页" width="49%" />
+  <img src="docs/screenshots/practice.webp" alt="练习页" width="49%" />
   <br/><br/>
-  <img src="docs/screenshots/question-detail.png" alt="题目详情 + AI 助手" width="49%" />
-  <img src="docs/screenshots/settings.png" alt="设置面板" width="49%" />
+  <img src="docs/screenshots/question-detail.webp" alt="题目详情 + AI 助手" width="49%" />
+  <img src="docs/screenshots/settings.webp" alt="设置面板" width="49%" />
 </div>
-
 
 ---
 
