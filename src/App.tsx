@@ -1,5 +1,5 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Navbar } from "@/components/layout/Navbar";
 import { Spinner } from "@/components/ui";
 
@@ -22,6 +22,27 @@ function PageLoader() {
 	);
 }
 
+/**
+ * Fallback component for /api/auth — only rendered if the Service Worker
+ * intercepts the OAuth callback and serves the SPA shell instead of letting
+ * the request reach the Vercel serverless function.
+ *
+ * We immediately forward the browser to the real endpoint so the serverless
+ * function can exchange the code for a token and redirect back to /?auth=success.
+ */
+function ApiAuthFallback() {
+	const location = useLocation();
+
+	useEffect(() => {
+		// Re-issue the request as a full navigation so it bypasses any SW cache
+		// and hits the Vercel edge network directly.
+		const target = location.pathname + location.search;
+		window.location.replace(target);
+	}, [location]);
+
+	return <PageLoader />;
+}
+
 export default function App() {
 	return (
 		<BrowserRouter>
@@ -30,6 +51,9 @@ export default function App() {
 				<main>
 					<Suspense fallback={<PageLoader />}>
 						<Routes>
+							{/* Defensive catch for the OAuth callback path in case the
+							    Service Worker serves the SPA shell for /api/auth */}
+							<Route path="/api/auth" element={<ApiAuthFallback />} />
 							<Route path="/" element={<Dashboard />} />
 							<Route path="/questions" element={<QuestionList />} />
 							<Route path="/questions/:id" element={<QuestionDetail />} />

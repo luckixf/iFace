@@ -18,7 +18,7 @@ export default defineConfig({
 				name: "iFace · 前端面试刷题助手",
 				short_name: "iFace",
 				description: "前端面试刷题助手，覆盖 JS、React、CSS、TypeScript、性能优化等核心模块",
-        theme_color: "#ffffff",
+				theme_color: "#ffffff",
 				background_color: "#ffffff",
 				display: "standalone",
 				orientation: "portrait",
@@ -54,7 +54,15 @@ export default defineConfig({
 			},
 			workbox: {
 				globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+				// Never let the Service Worker intercept /api/* requests —
+				// those must always reach the Vercel serverless functions via the network.
+				navigateFallbackDenylist: [/^\/api\//],
 				runtimeCaching: [
+					{
+						// Force all /api/* fetches through the network — no caching ever.
+						urlPattern: /^\/api\/.*/i,
+						handler: "NetworkOnly",
+					},
 					{
 						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
 						handler: "CacheFirst",
