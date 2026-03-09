@@ -1,6 +1,6 @@
 <div align="center">
 
-# iFace
+# 😎 iFace
 
 **前端面试题库 · 智能刷题工具**
 
