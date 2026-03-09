@@ -31,24 +31,25 @@ const SESSIONS_KEY = "iface_ai_sessions";
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
-export const DEFAULT_SYSTEM_PROMPT = `你是一位专业的前端面试教练，专注于帮助候选人深度理解并清晰表达前端技术知识。
+export const DEFAULT_SYSTEM_PROMPT = `你是一位专业的前端面试教练，帮助候选人深度理解并清晰表达前端技术知识。
 
 ## 核心原则
-- **简洁优先**：每个回答聚焦 1-3 个核心点，避免冗长罗列
+- **简洁优先**：聚焦核心点，避免冗长罗列
 - **口语友好**：输出适合面试口头表达，而非照本宣科的文档
 - **深度优于广度**：宁可把一个概念讲透，也不要泛泛列举
 - **即时可用**：给出候选人能立刻套用的表达结构和关键词
 
-## 回答格式规范
-1. 先给出 **1 句话核心结论**（面试时第一句话就要命中要害）
+## 首次分析格式（仅用于初始问题分析）
+1. 先给出 **1 句话核心结论**
 2. 再用 **2-4 个要点** 展开（每点不超过 2 行）
-3. 如有必要，附上 **1 个类比或代码片段** 加深印象
-4. 最后可指出 **1 个加分延伸点**（区分候选人层次）
+3. 如有必要，附上 **1 个类比或代码片段**
+4. 可指出 **1 个加分延伸点**
 
-## 你的能力边界
-- 只回答与前端开发、面试相关的问题
-- 遇到与主题无关的问题，礼貌引导回面试场景
+## 追问与对话规则
+- 追问、闲聊、深挖细节时，**直接自然地回答**，不要套用上方固定格式
+- 保持对话连贯性，像真实的教练一样随机应变
 - 不替用户"写"答案，而是帮用户"理解"后自己说出来
+- 只回答与前端开发、面试相关的问题
 
 使用中文回复。`;
 
@@ -69,7 +70,10 @@ export const PRESET_MODELS = [
 	{ label: "Claude 3.5 Sonnet", value: "claude-3-5-sonnet-20241022" },
 	{ label: "Claude 3 Haiku", value: "claude-3-haiku-20240307" },
 	{ label: "DeepSeek Chat", value: "deepseek-chat" },
-	{ label: "Qwen Turbo", value: "qwen-turbo" },
+	{ label: "Qwen Flash", value: "qwen-flash" },
+	{ label: "GLM-4-Flash", value: "glm-4-flash" },
+	{ label: "GLM-5", value: "glm-4" },
+	{ label: "GLM-4-Plus", value: "glm-4-plus" },
 	{ label: "自定义", value: "custom" },
 ];
 
@@ -78,6 +82,7 @@ export const PRESET_BASE_URLS = [
 	{ label: "Anthropic", value: "https://api.anthropic.com/v1" },
 	{ label: "DeepSeek", value: "https://api.deepseek.com/v1" },
 	{ label: "阿里云 DashScope", value: "https://dashscope.aliyuncs.com/compatible-mode/v1" },
+	{ label: "智谱 GLM (ZhipuAI)", value: "https://open.bigmodel.cn/api/paas/v4" },
 	{ label: "自定义", value: "custom" },
 ];
 
@@ -274,6 +279,7 @@ export function useAIStore() {
 			questionId: string,
 			userMessage: string,
 			contextMessages: AIMessage[],
+			systemSuffix: string,
 			onChunk: (chunk: string) => void,
 			onDone: (fullText: string) => void,
 			onError: (error: string) => void,
@@ -296,8 +302,13 @@ export function useAIStore() {
 			const userMsg: AIMessage = { role: "user", content: userMessage };
 			dispatch({ type: "ADD_MESSAGE", questionId, message: userMsg });
 
+			// Build system prompt: base prompt + question context suffix (always included
+			// so the model always knows the topic, but format rules only apply on first message)
+			const baseSystem = buildSystemPrompt(stateRef.current.config.systemPrompt);
+			const systemContent = systemSuffix ? baseSystem + systemSuffix : baseSystem;
+
 			const messages: AIMessage[] = [
-					{ role: "system", content: buildSystemPrompt(stateRef.current.config.systemPrompt) },
+				{ role: "system", content: systemContent },
 				...contextMessages,
 				userMsg,
 			];

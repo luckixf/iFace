@@ -333,7 +333,8 @@ function MyAnswerInput({
 		await sendMessage(
 			questionId + "_selfcheck",
 			"请根据以上内容给我反馈",
-			[{ role: "system" as const, content: systemPrompt }, ...contextMessages],
+			contextMessages,
+			`\n\n---\n${systemPrompt}`,
 			(chunk) => setStreamingFeedback((prev) => prev + chunk),
 			(full) => {
 				setFeedback(full);

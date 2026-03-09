@@ -340,6 +340,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 	const [dataStats, setDataStats] = useState<{ questions: number; records: number } | null>(null);
 	const [importing, setImporting] = useState(false);
 	const [exporting, setExporting] = useState(false);
+	const [testing, setTesting] = useState(false);
+	const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
 	const importRef = useRef<HTMLInputElement>(null);
 	const drawerRef = useRef<HTMLDivElement>(null);
@@ -423,6 +425,63 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 		setIsDirty(false);
 		showToast("已恢复默认设置");
 	}, [resetConfig, showToast]);
+
+	const handleTest = useCallback(async () => {
+		const finalModel = localConfig.model === "custom" ? customModel.trim() : localConfig.model;
+		const finalBaseUrl = localConfig.baseUrl === "custom" ? customBaseUrl.trim() : localConfig.baseUrl;
+		const apiKey = localConfig.apiKey.trim();
+
+		if (!apiKey) {
+			setTestResult({ ok: false, message: "请先填写 API Key" });
+			return;
+		}
+		if (!finalBaseUrl) {
+			setTestResult({ ok: false, message: "请先填写 Base URL" });
+			return;
+		}
+		if (!finalModel) {
+			setTestResult({ ok: false, message: "请先填写模型名称" });
+			return;
+		}
+
+		setTesting(true);
+		setTestResult(null);
+
+		try {
+			const response = await fetch(`${finalBaseUrl}/chat/completions`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${apiKey}`,
+				},
+				body: JSON.stringify({
+					model: finalModel,
+					messages: [{ role: "user", content: "Hi, reply with exactly: OK" }],
+					max_tokens: 10,
+					stream: false,
+				}),
+			});
+
+			if (!response.ok) {
+				const errText = await response.text();
+				let errMsg = `HTTP ${response.status}`;
+				try {
+					const errJson = JSON.parse(errText);
+					errMsg = errJson?.error?.message ?? errMsg;
+				} catch {}
+				setTestResult({ ok: false, message: errMsg });
+			} else {
+				const data = await response.json();
+				const reply = data?.choices?.[0]?.message?.content ?? "（无内容）";
+				setTestResult({ ok: true, message: `连接成功！模型回复：${reply.slice(0, 60)}` });
+			}
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : "网络错误";
+			setTestResult({ ok: false, message: msg });
+		} finally {
+			setTesting(false);
+		}
+	}, [localConfig, customModel, customBaseUrl]);
 
 	// ─── Data Actions ──────────────────────────────────────────────────────────
 
@@ -1082,7 +1141,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 										style={{
 											resize: "vertical",
 											fontFamily: "var(--font-mono)",
-											fontSize: 11,
+											fontSize: 13,
 											lineHeight: 1.6,
 											minHeight: 140,
 											maxHeight: 320,
@@ -1508,64 +1567,135 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 					}}
 				>
 					{/* Save bar (AI tab) */}
-					{tab === "ai" && (
-						<div
-							style={{
-								padding: "12px 20px",
-								display: "flex",
-								alignItems: "center",
-								gap: 8,
-								borderBottom: "1px solid var(--border-subtle)",
-							}}
-						>
-							<button
-								onClick={handleSave}
-								disabled={!isDirty}
+						{tab === "ai" && (
+							<div
 								style={{
-									flex: 1,
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-									gap: 6,
-									padding: "8px 16px",
-									borderRadius: 9,
-									border: "none",
-									background: isDirty ? "var(--primary)" : "var(--surface-3)",
-									color: isDirty ? "white" : "var(--text-3)",
-									fontSize: 13,
-									fontWeight: 500,
-									cursor: isDirty ? "pointer" : "default",
-									transition: "all 0.15s",
+									borderBottom: "1px solid var(--border-subtle)",
 								}}
 							>
-								{saved ? <><IconCheck /> 已保存</> : "保存设置"}
-							</button>
-							<button
-								onClick={handleReset}
-								style={{
-									padding: "8px 12px",
-									borderRadius: 9,
-									border: "1px solid var(--border)",
-									background: "transparent",
-									color: "var(--text-3)",
-									fontSize: 12,
-									cursor: "pointer",
-									whiteSpace: "nowrap",
-									transition: "all 0.15s",
-								}}
-								onMouseEnter={(e) => {
-									(e.currentTarget as HTMLElement).style.color = "var(--text)";
-									(e.currentTarget as HTMLElement).style.background = "var(--surface-2)";
-								}}
-								onMouseLeave={(e) => {
-									(e.currentTarget as HTMLElement).style.color = "var(--text-3)";
-									(e.currentTarget as HTMLElement).style.background = "transparent";
-								}}
-							>
-								恢复默认
-							</button>
-						</div>
-					)}
+								{/* Test result banner */}
+								{testResult && (
+									<div
+										style={{
+											padding: "8px 20px",
+											fontSize: 12,
+											lineHeight: 1.5,
+											color: testResult.ok ? "var(--success)" : "var(--danger)",
+											background: testResult.ok ? "var(--success-light)" : "var(--danger-light)",
+											borderBottom: "1px solid var(--border-subtle)",
+											display: "flex",
+											alignItems: "flex-start",
+											gap: 6,
+										}}
+									>
+										<span style={{ flexShrink: 0, marginTop: 1 }}>{testResult.ok ? "✅" : "❌"}</span>
+										<span style={{ wordBreak: "break-all" }}>{testResult.message}</span>
+									</div>
+								)}
+								<div
+									style={{
+										padding: "12px 20px",
+										display: "flex",
+										alignItems: "center",
+										gap: 8,
+									}}
+								>
+									<button
+										onClick={handleSave}
+										disabled={!isDirty}
+										style={{
+											flex: 1,
+											display: "flex",
+											alignItems: "center",
+											justifyContent: "center",
+											gap: 6,
+											padding: "8px 16px",
+											borderRadius: 9,
+											border: "none",
+											background: isDirty ? "var(--primary)" : "var(--surface-3)",
+											color: isDirty ? "white" : "var(--text-3)",
+											fontSize: 13,
+											fontWeight: 500,
+											cursor: isDirty ? "pointer" : "default",
+											transition: "all 0.15s",
+										}}
+									>
+										{saved ? <><IconCheck /> 已保存</> : "保存设置"}
+									</button>
+									<button
+										onClick={handleTest}
+										disabled={testing}
+										style={{
+											padding: "8px 12px",
+											borderRadius: 9,
+											border: "1px solid var(--border)",
+											background: "transparent",
+											color: testing ? "var(--text-3)" : "var(--text-2)",
+											fontSize: 12,
+											cursor: testing ? "default" : "pointer",
+											whiteSpace: "nowrap",
+											transition: "all 0.15s",
+											display: "flex",
+											alignItems: "center",
+											gap: 4,
+										}}
+										onMouseEnter={(e) => {
+											if (!testing) {
+												(e.currentTarget as HTMLElement).style.color = "var(--primary)";
+												(e.currentTarget as HTMLElement).style.borderColor = "rgba(var(--primary-rgb), 0.4)";
+												(e.currentTarget as HTMLElement).style.background = "var(--primary-light)";
+											}
+										}}
+										onMouseLeave={(e) => {
+											(e.currentTarget as HTMLElement).style.color = "var(--text-2)";
+											(e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
+											(e.currentTarget as HTMLElement).style.background = "transparent";
+										}}
+									>
+										{testing ? (
+											<>
+												<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 1s linear infinite" }}>
+													<path d="M21 12a9 9 0 1 1-6.219-8.56" />
+												</svg>
+												测试中…
+											</>
+										) : (
+											<>
+												<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+													<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+													<polyline points="22 4 12 14.01 9 11.01" />
+												</svg>
+												测试连接
+											</>
+										)}
+									</button>
+									<button
+										onClick={handleReset}
+										style={{
+											padding: "8px 12px",
+											borderRadius: 9,
+											border: "1px solid var(--border)",
+											background: "transparent",
+											color: "var(--text-3)",
+											fontSize: 12,
+											cursor: "pointer",
+											whiteSpace: "nowrap",
+											transition: "all 0.15s",
+										}}
+										onMouseEnter={(e) => {
+											(e.currentTarget as HTMLElement).style.color = "var(--text)";
+											(e.currentTarget as HTMLElement).style.background = "var(--surface-2)";
+										}}
+										onMouseLeave={(e) => {
+											(e.currentTarget as HTMLElement).style.color = "var(--text-3)";
+											(e.currentTarget as HTMLElement).style.background = "transparent";
+										}}
+									>
+										恢复默认
+									</button>
+								</div>
+							</div>
+						)}
 
 					{/* GitHub link */}
 					<div

@@ -640,7 +640,7 @@ body {
 	border: 1px solid var(--border);
 	background: var(--surface);
 	color: var(--text);
-	font-size: 0.875rem;
+	font-size: 1rem; /* ≥16px prevents iOS auto-zoom on focus */
 	font-family: var(--font-sans);
 	line-height: 1.5;
 	outline: none;

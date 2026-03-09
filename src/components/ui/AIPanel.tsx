@@ -261,7 +261,7 @@ function EmptyChat({ onQuickAction }: { onQuickAction: (prompt: string) => void 
 	const quickStarters = [
 		{ icon: "🎯", label: "分析考点", prompt: "请分析这道题的核心考察点，以及面试官想通过这道题了解候选人哪些能力？" },
 		{ icon: "📝", label: "答题结构", prompt: "请给我一个清晰的答题框架和结构，让我在面试中能有条理地回答这道题。" },
-		{ icon: "🔮", label: "追问预测", prompt: "面试官通常会在这道题上做哪些追问？请列出 3-5 个高频追问及简要回答思路。" },
+		{ icon: "📖", label: "讲解知识点", prompt: "请帮我深入讲解这道题涉及的核心知识点，从原理到实践，让我真正理解而不只是背答案。" },
 		{ icon: "🎤", label: "模拟面试", prompt: "请模拟面试官的角色，对我进行关于这道题的追问式面试练习，一次只问一个问题。" },
 	];
 
@@ -592,21 +592,28 @@ export function AIPanel({ question, answerVisible, onOpenSettings, headless = fa
 
 	const isReady = config.enabled && config.apiKey.trim().length > 0;
 
-	const buildContextMessages = useCallback((): AIMessage[] => {
+	const buildContextMessages = useCallback((): { messages: AIMessage[]; systemSuffix: string } => {
 		const ctx = buildQuestionContext(
 			question.question,
 			question.module,
 			question.difficulty,
 			answerVisible ? question.answer : undefined,
 		);
-		return [
-			{ role: "user", content: ctx },
-			{
-				role: "assistant",
-				content: "好的，我已了解这道题的信息。你有什么想了解的，或者需要我帮你分析什么？",
-			},
-			...messages,
-		];
+
+		if (messages.length === 0) {
+			// First turn: attach question context as system suffix, no fake history
+			return {
+				messages: [],
+				systemSuffix: `\n\n---\n## 当前题目上下文\n${ctx}`,
+			};
+		}
+
+		// Follow-up turns: only carry real conversation history, no fake prefix
+		// Question context is already baked into system prompt from first turn's exchange
+		return {
+			messages: [...messages],
+			systemSuffix: `\n\n---\n## 当前题目上下文\n${ctx}`,
+		};
 	}, [question, answerVisible, messages]);
 
 	const handleSend = useCallback(
@@ -618,12 +625,13 @@ export function AIPanel({ question, answerVisible, onOpenSettings, headless = fa
 			setError(null);
 			setStreamingText("");
 
-			const contextMessages = buildContextMessages();
+			const { messages: ctxMessages, systemSuffix } = buildContextMessages();
 
 			await sendMessage(
 				questionId,
 				msg,
-				contextMessages,
+				ctxMessages,
+				systemSuffix,
 				(chunk) => {
 					setStreamingText((prev) => prev + chunk);
 				},
@@ -816,7 +824,7 @@ export function AIPanel({ question, answerVisible, onOpenSettings, headless = fa
 						display: "flex",
 						alignItems: "flex-end",
 						gap: 8,
-						padding: "8px 10px",
+						padding: "8px 8px 8px 12px",
 						borderRadius: 12,
 						border: "1px solid var(--border)",
 						background: "var(--surface-2)",
@@ -850,23 +858,25 @@ export function AIPanel({ question, answerVisible, onOpenSettings, headless = fa
 							border: "none",
 							outline: "none",
 							color: "var(--text)",
-							fontSize: 13,
+							fontSize: 16,
 							lineHeight: 1.5,
 							resize: "none",
 							fontFamily: "var(--font-sans)",
-							minHeight: 22,
+							minHeight: 24,
 							maxHeight: 120,
 							overflowY: "auto",
+							padding: "4px 0",
 						}}
 					/>
 					<button
 						onClick={isStreaming ? undefined : () => handleSend()}
 						disabled={!isStreaming && !input.trim()}
 						style={{
-							width: 30,
-							height: 30,
+							width: 32,
+							height: 32,
 							borderRadius: 8,
 							border: "none",
+							flexShrink: 0,
 							background:
 								isStreaming
 									? "var(--danger)"
@@ -879,7 +889,6 @@ export function AIPanel({ question, answerVisible, onOpenSettings, headless = fa
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "center",
-							flexShrink: 0,
 							transition: "background 0.15s",
 						}}
 					>
