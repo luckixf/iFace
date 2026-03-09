@@ -1524,11 +1524,9 @@ export default function QuestionDetail() {
 						height: 52,
 						borderRadius: "50%",
 						border: "none",
-						background: isAiEnabled ? "var(--primary)" : "var(--surface-3)",
-						color: isAiEnabled ? "white" : "var(--text-3)",
-						boxShadow: isAiEnabled
-							? "0 4px 16px rgba(var(--primary-rgb), 0.45), 0 2px 6px rgba(0,0,0,0.12)"
-							: "var(--shadow-md)",
+						background: "var(--surface-3)",
+						color: "var(--text-3)",
+						boxShadow: "var(--shadow-md)",
 						cursor: "pointer",
 						display: "none",
 						alignItems: "center",
