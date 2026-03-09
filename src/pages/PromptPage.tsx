@@ -10,6 +10,18 @@ const MODULE_VALUES = [
 	"TypeScript",
 	"手写题",
 	"项目深挖",
+	// Common custom modules shown as datalist suggestions
+	"Golang",
+	"Java",
+	"Python",
+	"Rust",
+	"Node.js",
+	"数据库",
+	"算法",
+	"系统设计",
+	"DevOps",
+	"Android",
+	"iOS",
 ];
 
 // ─── MD → JSON converter ─────────────────────────────────────────────────────
@@ -793,10 +805,23 @@ function CustomBuilder({
 						}}
 					>
 						模块
+						<span
+							style={{
+								marginLeft: 5,
+								fontSize: 10,
+								color: "var(--text-3)",
+								fontWeight: 400,
+							}}
+						>
+							（可自由输入，如 Golang、Java）
+						</span>
 					</label>
-					<select
+					<input
+						type="text"
+						list="module-suggestions"
 						value={module}
 						onChange={(e) => setModule(e.target.value)}
+						placeholder="输入或选择模块名…"
 						style={{
 							width: "100%",
 							padding: "7px 10px",
@@ -806,15 +831,22 @@ function CustomBuilder({
 							border: "1px solid var(--border)",
 							color: "var(--text)",
 							outline: "none",
-							cursor: "pointer",
+							boxSizing: "border-box",
 						}}
-					>
+						onFocus={(e) => {
+							e.currentTarget.style.borderColor = "var(--primary)";
+							e.currentTarget.style.boxShadow = "0 0 0 3px var(--primary-light)";
+						}}
+						onBlur={(e) => {
+							e.currentTarget.style.borderColor = "var(--border)";
+							e.currentTarget.style.boxShadow = "none";
+						}}
+					/>
+					<datalist id="module-suggestions">
 						{MODULE_VALUES.map((m) => (
-							<option key={m} value={m}>
-								{m}
-							</option>
+							<option key={m} value={m} />
 						))}
-					</select>
+					</datalist>
 				</div>
 
 				{/* Count */}
@@ -978,6 +1010,27 @@ function MdConverterPanel() {
 		errors: string[];
 	} | null>(null);
 	const [copied, setCopied] = useState(false);
+	const mdFileInputRef = React.useRef<HTMLInputElement>(null);
+
+	const handleMdFileImport = React.useCallback(
+		(e: React.ChangeEvent<HTMLInputElement>) => {
+			const file = e.target.files?.[0];
+			if (!file) return;
+			const reader = new FileReader();
+			reader.onload = (ev) => {
+				const text = ev.target?.result;
+				if (typeof text === "string") {
+					setMdInput(text);
+					setResult(null);
+					setCopied(false);
+				}
+			};
+			reader.readAsText(file, "utf-8");
+			// reset so same file can be re-imported
+			e.target.value = "";
+		},
+		[],
+	);
 
 	const handleConvert = useCallback(() => {
 		if (!mdInput.trim()) return;
@@ -1013,6 +1066,15 @@ function MdConverterPanel() {
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+			{/* Hidden MD file input */}
+			<input
+				ref={mdFileInputRef}
+				type="file"
+				accept=".md,.markdown,text/markdown"
+				style={{ display: "none" }}
+				onChange={handleMdFileImport}
+			/>
+
 			{/* Header */}
 			<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 				<div>
@@ -1020,7 +1082,7 @@ function MdConverterPanel() {
 						Markdown → JSON 转换器
 					</p>
 					<p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 2 }}>
-						将 AI 输出的 Markdown 题目粘贴到左侧，点击转换后复制 JSON 导入题库
+						将 AI 输出的 Markdown 题目粘贴或导入文件，转换后复制 JSON 导入题库
 					</p>
 				</div>
 			</div>
@@ -1041,14 +1103,48 @@ function MdConverterPanel() {
 						<span style={{ fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>
 							AI 输出（Markdown）
 						</span>
-						{mdInput && (
+						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+							{/* Import .md file button */}
 							<button
-								onClick={() => { setMdInput(""); setResult(null); }}
-								style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+								onClick={() => mdFileInputRef.current?.click()}
+								title="从本地导入 .md 文件"
+								style={{
+									display: "flex",
+									alignItems: "center",
+									gap: 4,
+									fontSize: 11,
+									color: "var(--primary)",
+									background: "none",
+									border: "1px solid rgba(var(--primary-rgb), 0.3)",
+									borderRadius: 6,
+									cursor: "pointer",
+									padding: "3px 8px",
+									transition: "all 0.15s",
+								}}
+								onMouseEnter={(e) => {
+									(e.currentTarget as HTMLElement).style.background = "var(--primary-light)";
+								}}
+								onMouseLeave={(e) => {
+									(e.currentTarget as HTMLElement).style.background = "none";
+								}}
 							>
-								清空
+								<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+									<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+									<polyline points="14 2 14 8 20 8" />
+									<line x1="12" y1="18" x2="12" y2="12" />
+									<line x1="9" y1="15" x2="15" y2="15" />
+								</svg>
+								导入 .md
 							</button>
-						)}
+							{mdInput && (
+								<button
+									onClick={() => { setMdInput(""); setResult(null); }}
+									style={{ fontSize: 11, color: "var(--text-3)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+								>
+									清空
+								</button>
+							)}
+						</div>
 					</div>
 					<textarea
 						value={mdInput}

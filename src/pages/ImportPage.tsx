@@ -2,12 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Spinner } from "@/components/ui";
 import { invalidateQuestionsCache } from "@/hooks/useQuestions";
-import { getCustomSources, removeCustomSource } from "@/lib/db";
+import {
+	getCustomSources,
+	removeCustomSource,
+	unregisterModuleFromCategories,
+	getActiveModules,
+	getCategoryMap,
+} from "@/lib/db";
 import {
 	importCustomQuestions,
 	isJSONFile,
+	isMDFile,
 	parseJSONSafe,
 } from "@/lib/questionLoader";
+import { mdToQuestions } from "@/pages/PromptPage";
 
 // ─── Result Toast ─────────────────────────────────────────────────────────────
 
@@ -199,9 +207,13 @@ function ResultToast({
 function DropZone({
 	onFiles,
 	loading,
+	category,
+	onCategoryChange,
 }: {
-	onFiles: (files: File[]) => void;
+	onFiles: (files: File[], category: string) => void;
 	loading: boolean;
+	category: string;
+	onCategoryChange: (v: string) => void;
 }) {
 	const [dragging, setDragging] = useState(false);
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -210,123 +222,170 @@ function DropZone({
 		(e: React.DragEvent) => {
 			e.preventDefault();
 			setDragging(false);
-			const files = Array.from(e.dataTransfer.files).filter(isJSONFile);
-			if (files.length > 0) onFiles(files);
+			const files = Array.from(e.dataTransfer.files).filter(
+				(f) => isJSONFile(f) || isMDFile(f),
+			);
+			if (files.length > 0) onFiles(files, category);
 		},
-		[onFiles],
+		[onFiles, category],
 	);
 
 	const handleChange = useCallback(
 		(e: React.ChangeEvent<HTMLInputElement>) => {
-			const files = Array.from(e.target.files ?? []).filter(isJSONFile);
-			if (files.length > 0) onFiles(files);
+			const files = Array.from(e.target.files ?? []).filter(
+				(f) => isJSONFile(f) || isMDFile(f),
+			);
+			if (files.length > 0) onFiles(files, category);
 			e.target.value = "";
 		},
-		[onFiles],
+		[onFiles, category],
 	);
 
 	return (
-		<div
-			onDragOver={(e) => {
-				e.preventDefault();
-				setDragging(true);
-			}}
-			onDragLeave={() => setDragging(false)}
-			onDrop={handleDrop}
-			onClick={() => !loading && inputRef.current?.click()}
-			style={{
-				position: "relative",
-				display: "flex",
-				flexDirection: "column",
-				alignItems: "center",
-				justifyContent: "center",
-				gap: 14,
-				minHeight: 180,
-				borderRadius: 14,
-				border: "2px dashed",
-				borderColor: dragging ? "var(--primary)" : "var(--border)",
-				background: dragging ? "var(--primary-light)" : "transparent",
-				transform: dragging ? "scale(1.01)" : "scale(1)",
-				transition: "all 0.2s",
-				cursor: loading ? "default" : "pointer",
-				userSelect: "none",
-				opacity: loading ? 0.6 : 1,
-				pointerEvents: loading ? "none" : "auto",
-			}}
-		>
-			<input
-				ref={inputRef}
-				type="file"
-				accept=".json,application/json"
-				multiple
-				style={{ display: "none" }}
-				onChange={handleChange}
-			/>
-
-			{loading ? (
-				<div
+		<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+			{/* Category input */}
+			<div>
+				<label
 					style={{
-						display: "flex",
-						flexDirection: "column",
-						alignItems: "center",
-						gap: 8,
+						display: "block",
+						fontSize: 12,
+						fontWeight: 500,
+						color: "var(--text-2)",
+						marginBottom: 6,
 					}}
 				>
-					<Spinner size="lg" className="text-[var(--primary)]" />
-					<p style={{ fontSize: 13, color: "var(--text-2)" }}>导入中…</p>
-				</div>
-			) : (
-				<>
-					<div
-						style={{
-							width: 52,
-							height: 52,
-							borderRadius: 14,
-							background: dragging ? "var(--primary)" : "var(--surface-3)",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							transition: "all 0.2s",
-						}}
-					>
-						<svg
-							width="22"
-							height="22"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke={dragging ? "white" : "var(--text-3)"}
-							strokeWidth="1.6"
-							strokeLinecap="round"
-							strokeLinejoin="round"
-						>
-							<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-							<polyline points="14 2 14 8 20 8" />
-							<line x1="12" y1="18" x2="12" y2="12" />
-							<line x1="9" y1="15" x2="15" y2="15" />
-						</svg>
-					</div>
-					<div style={{ textAlign: "center" }}>
-						<p style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}>
-							{dragging ? "松开以导入" : "拖拽 JSON 文件到此处"}
-						</p>
-						<p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
-							或点击选择文件（支持多选）
-						</p>
-					</div>
+					分类名称
 					<span
 						style={{
+							marginLeft: 6,
 							fontSize: 11,
-							padding: "2px 8px",
-							borderRadius: 5,
-							border: "1px solid var(--border-subtle)",
 							color: "var(--text-3)",
-							fontFamily: "var(--font-mono)",
+							fontWeight: 400,
 						}}
 					>
-						.json
+						（留空则自动从文件名推断，如"Go"、"Java"）
 					</span>
-				</>
-			)}
+				</label>
+				<input
+					type="text"
+					placeholder="例如：Go、Java、系统设计…"
+					value={category}
+					onChange={(e) => onCategoryChange(e.target.value)}
+					className="input-base"
+					style={{ borderRadius: 10 }}
+				/>
+			</div>
+
+			{/* Drop area */}
+			<div
+				onDragOver={(e) => {
+					e.preventDefault();
+					setDragging(true);
+				}}
+				onDragLeave={() => setDragging(false)}
+				onDrop={handleDrop}
+				onClick={() => !loading && inputRef.current?.click()}
+				style={{
+					position: "relative",
+					display: "flex",
+					flexDirection: "column",
+					alignItems: "center",
+					justifyContent: "center",
+					gap: 14,
+					minHeight: 160,
+					borderRadius: 14,
+					border: "2px dashed",
+					borderColor: dragging ? "var(--primary)" : "var(--border)",
+					background: dragging ? "var(--primary-light)" : "transparent",
+					transform: dragging ? "scale(1.01)" : "scale(1)",
+					transition: "all 0.2s",
+					cursor: loading ? "default" : "pointer",
+					userSelect: "none",
+					opacity: loading ? 0.6 : 1,
+					pointerEvents: loading ? "none" : "auto",
+				}}
+			>
+				<input
+					ref={inputRef}
+					type="file"
+					accept=".json,application/json,.md,.markdown,text/markdown"
+					multiple
+					style={{ display: "none" }}
+					onChange={handleChange}
+				/>
+
+				{loading ? (
+					<div
+						style={{
+							display: "flex",
+							flexDirection: "column",
+							alignItems: "center",
+							gap: 8,
+						}}
+					>
+						<Spinner size="lg" className="text-[var(--primary)]" />
+						<p style={{ fontSize: 13, color: "var(--text-2)" }}>导入中…</p>
+					</div>
+				) : (
+					<>
+						<div
+							style={{
+								width: 52,
+								height: 52,
+								borderRadius: 14,
+								background: dragging ? "var(--primary)" : "var(--surface-3)",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								transition: "all 0.2s",
+							}}
+						>
+							<svg
+								width="22"
+								height="22"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke={dragging ? "white" : "var(--text-3)"}
+								strokeWidth="1.6"
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+								<polyline points="14 2 14 8 20 8" />
+								<line x1="12" y1="18" x2="12" y2="12" />
+								<line x1="9" y1="15" x2="15" y2="15" />
+							</svg>
+						</div>
+						<div style={{ textAlign: "center" }}>
+							<p
+								style={{ fontSize: 14, fontWeight: 500, color: "var(--text)" }}
+							>
+								{dragging ? "松开以导入" : "拖拽文件到此处"}
+							</p>
+							<p style={{ fontSize: 12, color: "var(--text-3)", marginTop: 4 }}>
+								或点击选择文件（支持多选）
+							</p>
+						</div>
+						<div style={{ display: "flex", gap: 6 }}>
+							{[".json", ".md"].map((ext) => (
+								<span
+									key={ext}
+									style={{
+										fontSize: 11,
+										padding: "2px 8px",
+										borderRadius: 5,
+										border: "1px solid var(--border-subtle)",
+										color: "var(--text-3)",
+										fontFamily: "var(--font-mono)",
+									}}
+								>
+									{ext}
+								</span>
+							))}
+						</div>
+					</>
+				)}
+			</div>
 		</div>
 	);
 }
@@ -337,11 +396,12 @@ function PastePanel({
 	onImport,
 	loading,
 }: {
-	onImport: (json: string, source: string) => void;
+	onImport: (json: string, source: string, category: string) => void;
 	loading: boolean;
 }) {
 	const [text, setText] = useState("");
 	const [source, setSource] = useState("");
+	const [category, setCategory] = useState("");
 	const [error, setError] = useState("");
 
 	const handleSubmit = () => {
@@ -359,31 +419,71 @@ function PastePanel({
 			return;
 		}
 		setError("");
-		onImport(text.trim(), source.trim());
+		onImport(text.trim(), source.trim(), category.trim());
 	};
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-			<div>
-				<label
-					style={{
-						display: "block",
-						fontSize: 12,
-						fontWeight: 500,
-						color: "var(--text-2)",
-						marginBottom: 6,
-					}}
-				>
-					来源名称 <span style={{ color: "var(--danger)" }}>*</span>
-				</label>
-				<input
-					type="text"
-					placeholder="例如：字节跳动、我的项目专题…"
-					value={source}
-					onChange={(e) => setSource(e.target.value)}
-					className="input-base"
-					style={{ borderRadius: 10 }}
-				/>
+			<div
+				style={{
+					display: "grid",
+					gridTemplateColumns: "1fr 1fr",
+					gap: 10,
+				}}
+				className="paste-fields-grid"
+			>
+				<div>
+					<label
+						style={{
+							display: "block",
+							fontSize: 12,
+							fontWeight: 500,
+							color: "var(--text-2)",
+							marginBottom: 6,
+						}}
+					>
+						来源名称 <span style={{ color: "var(--danger)" }}>*</span>
+					</label>
+					<input
+						type="text"
+						placeholder="例如：字节跳动、我的项目专题…"
+						value={source}
+						onChange={(e) => setSource(e.target.value)}
+						className="input-base"
+						style={{ borderRadius: 10 }}
+					/>
+				</div>
+				<div>
+					<label
+						style={{
+							display: "block",
+							fontSize: 12,
+							fontWeight: 500,
+							color: "var(--text-2)",
+							marginBottom: 6,
+						}}
+					>
+						分类名称
+						<span
+							style={{
+								marginLeft: 5,
+								fontSize: 11,
+								color: "var(--text-3)",
+								fontWeight: 400,
+							}}
+						>
+							（可选）
+						</span>
+					</label>
+					<input
+						type="text"
+						placeholder="例如：Go、Java、系统设计…"
+						value={category}
+						onChange={(e) => setCategory(e.target.value)}
+						className="input-base"
+						style={{ borderRadius: 10 }}
+					/>
+				</div>
 			</div>
 
 			<div>
@@ -399,7 +499,7 @@ function PastePanel({
 					JSON 内容 <span style={{ color: "var(--danger)" }}>*</span>
 				</label>
 				<textarea
-					placeholder={`粘贴题目 JSON 数组，格式：\n[\n  {\n    "id": "my-001",\n    "module": "React",\n    "difficulty": 2,\n    "question": "题目内容",\n    "answer": "## 参考答案\\n...",\n    "tags": ["hooks"],\n    "source": "项目深挖"\n  }\n]`}
+					placeholder={`粘贴题目 JSON 数组，格式：\n[\n  {\n    "id": "my-001",\n    "module": "Golang",\n    "difficulty": 2,\n    "question": "题目内容",\n    "answer": "## 参考答案\\n...",\n    "tags": ["goroutine"],\n    "source": "高频"\n  }\n]`}
 					value={text}
 					onChange={(e) => setText(e.target.value)}
 					rows={10}
@@ -467,6 +567,105 @@ function PastePanel({
 			>
 				导入题目
 			</Button>
+		</div>
+	);
+}
+
+// ─── Categories Display ───────────────────────────────────────────────────────
+
+function CategoriesDisplay() {
+	const [catMap, setCatMap] = useState<Record<
+		string,
+		{ name: string; modules: string[]; builtin: boolean }
+	> | null>(null);
+
+	useEffect(() => {
+		getCategoryMap().then(setCatMap);
+	}, []);
+
+	if (!catMap || Object.keys(catMap).length === 0) return null;
+
+	const entries = Object.values(catMap).sort((a, b) => {
+		// builtin first
+		if (a.builtin !== b.builtin) return a.builtin ? -1 : 1;
+		return a.name.localeCompare(b.name);
+	});
+
+	return (
+		<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+			{entries.map((cat) => (
+				<div
+					key={cat.name}
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 10,
+						padding: "9px 14px",
+						borderRadius: 10,
+						background: "var(--surface-2)",
+						border: "1px solid var(--border-subtle)",
+					}}
+				>
+					<span
+						style={{
+							fontSize: 13,
+							fontWeight: 600,
+							color: "var(--text)",
+							minWidth: 60,
+							flexShrink: 0,
+						}}
+					>
+						{cat.name}
+					</span>
+					{cat.builtin && (
+						<span
+							style={{
+								fontSize: 10,
+								fontWeight: 500,
+								color: "var(--primary)",
+								background: "var(--primary-light)",
+								border: "1px solid rgba(var(--primary-rgb),0.2)",
+								borderRadius: 4,
+								padding: "1px 6px",
+								flexShrink: 0,
+							}}
+						>
+							内置
+						</span>
+					)}
+					<div
+						style={{
+							display: "flex",
+							flexWrap: "wrap",
+							gap: 5,
+							flex: 1,
+							minWidth: 0,
+						}}
+					>
+						{cat.modules.map((m) => (
+							<span
+								key={m}
+								style={{
+									fontSize: 11,
+									padding: "2px 8px",
+									borderRadius: 5,
+									background: "var(--surface-3)",
+									color: "var(--text-2)",
+									border: "1px solid var(--border-subtle)",
+									whiteSpace: "nowrap",
+								}}
+							>
+								{m}
+							</span>
+						))}
+						{cat.modules.length === 0 && (
+							<span style={{ fontSize: 11, color: "var(--text-3)" }}>
+								暂无模块
+							</span>
+						)}
+					</div>
+				</div>
+			))}
 		</div>
 	);
 }
@@ -806,6 +1005,7 @@ export default function ImportPage() {
 	const [loading, setLoading] = useState(false);
 	const [results, setResults] = useState<ImportResult[]>([]);
 	const [customSources, setCustomSources] = useState<string[]>([]);
+	const [fileCategory, setFileCategory] = useState("");
 
 	// Load existing custom sources
 	useEffect(() => {
@@ -814,10 +1014,10 @@ export default function ImportPage() {
 
 	// ── Import handler ──
 	const handleImport = useCallback(
-		async (data: unknown, sourceName: string) => {
+		async (data: unknown, sourceName: string, categoryName: string) => {
 			setLoading(true);
 			try {
-				const result = await importCustomQuestions(data, sourceName);
+				const result = await importCustomQuestions(data, sourceName, categoryName || undefined);
 				setResults((prev) => [result, ...prev]);
 
 				if (result.loaded > 0) {
@@ -836,10 +1036,32 @@ export default function ImportPage() {
 
 	// ── File drop handler ──
 	const handleFiles = useCallback(
-		async (files: File[]) => {
+		async (files: File[], category: string) => {
 			setLoading(true);
 			for (const file of files) {
 				const text = await file.text();
+
+				// Handle .md files: convert via mdToQuestions first
+				if (isMDFile(file)) {
+					const { questions, errors } = mdToQuestions(text);
+					if (questions.length === 0) {
+						setResults((prev) => [
+							{
+								source: file.name,
+								loaded: 0,
+								errors: errors.map((msg, i) => ({ index: i, message: msg })),
+								warnings: [],
+							},
+							...prev,
+						]);
+						continue;
+					}
+					const sourceName = file.name.replace(/\.(md|markdown)$/i, "");
+					await handleImport(questions, sourceName, category);
+					continue;
+				}
+
+				// Handle .json files
 				const parsed = parseJSONSafe(text);
 				if (!parsed.ok) {
 					setResults((prev) => [
@@ -855,7 +1077,7 @@ export default function ImportPage() {
 					]);
 					continue;
 				}
-				await handleImport(parsed.data, file.name.replace(/\.json$/i, ""));
+				await handleImport(parsed.data, file.name.replace(/\.json$/i, ""), category);
 			}
 			setLoading(false);
 		},
@@ -864,7 +1086,7 @@ export default function ImportPage() {
 
 	// ── Paste handler ──
 	const handlePaste = useCallback(
-		async (json: string, source: string) => {
+		async (json: string, source: string, category: string) => {
 			const parsed = parseJSONSafe(json);
 			if (!parsed.ok) {
 				setResults((prev) => [
@@ -878,7 +1100,7 @@ export default function ImportPage() {
 				]);
 				return;
 			}
-			await handleImport(parsed.data, source);
+			await handleImport(parsed.data, source, category);
 		},
 		[handleImport],
 	);
@@ -888,8 +1110,21 @@ export default function ImportPage() {
 		if (!confirm(`确定要删除来源「${source}」的所有题目吗？此操作不可撤销。`))
 			return;
 		const { deleteQuestionsBySource } = await import("@/lib/db");
+		// Before deleting, find which modules belong to this source
+		const { getAllQuestions } = await import("@/lib/db");
+		const all = await getAllQuestions();
+		const affectedModules = [
+			...new Set(all.filter((q) => q.source === `custom_${source}` || q.source === source).map((q) => q.module)),
+		];
 		await deleteQuestionsBySource(source);
 		await removeCustomSource(source);
+		// Unregister modules that no longer have any questions
+		const remaining = await getActiveModules();
+		for (const mod of affectedModules) {
+			if (!remaining.includes(mod)) {
+				await unregisterModuleFromCategories(mod);
+			}
+		}
 		const updated = await getCustomSources();
 		setCustomSources(updated);
 		invalidateQuestionsCache();
@@ -972,11 +1207,16 @@ export default function ImportPage() {
 				</div>
 
 				{/* Tab content */}
-				{tab === "file" ? (
-					<DropZone onFiles={handleFiles} loading={loading} />
-				) : (
-					<PastePanel onImport={handlePaste} loading={loading} />
-				)}
+					{tab === "file" ? (
+						<DropZone
+							onFiles={handleFiles}
+							loading={loading}
+							category={fileCategory}
+							onCategoryChange={setFileCategory}
+						/>
+					) : (
+						<PastePanel onImport={handlePaste} loading={loading} />
+					)}
 			</div>
 
 			{/* ── Results ── */}
@@ -1067,6 +1307,25 @@ export default function ImportPage() {
 				<SchemaGuide />
 			</div>
 
+			{/* ── Category Overview ── */}
+			<div
+				className="animate-fade-in stagger-3"
+				style={{ display: "flex", flexDirection: "column", gap: 10 }}
+			>
+				<p
+					style={{
+						fontSize: 11,
+						fontWeight: 600,
+						color: "var(--text-3)",
+						textTransform: "uppercase",
+						letterSpacing: "0.06em",
+					}}
+				>
+					分类总览
+				</p>
+				<CategoriesDisplay />
+			</div>
+
 			{/* ── Custom Sources Manager ── */}
 			<div
 				className="animate-fade-in stagger-3"
@@ -1100,6 +1359,13 @@ export default function ImportPage() {
 			</div>
 
 			{/* ── Tip card ── */}
+			<style>{`
+				@media (max-width: 600px) {
+					.paste-fields-grid {
+						grid-template-columns: 1fr !important;
+					}
+				}
+			`}</style>
 			<div className="animate-fade-in stagger-4">
 				<div
 					className="card"

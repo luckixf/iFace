@@ -7,6 +7,7 @@ import {
 	getMeta,
 	META_KEYS,
 	markModuleLoaded,
+	registerModulesInCategory,
 	setMeta,
 } from "@/lib/db";
 import type { Question } from "@/types";
@@ -137,6 +138,7 @@ export interface CustomImportResult {
 export async function importCustomQuestions(
 	data: unknown,
 	sourceName: string,
+	categoryName?: string,
 ): Promise<CustomImportResult> {
 	const warnings: string[] = [];
 
@@ -167,7 +169,25 @@ export async function importCustomQuestions(
 
 	await bulkPutQuestions(stamped);
 
+	// Register all unique modules into the specified category (or derive one from source)
+	if (stamped.length > 0) {
+		const uniqueModules = [...new Set(stamped.map((q) => q.module))];
+		const resolvedCategory = categoryName?.trim() || _deriveCategory(sourceName);
+		await registerModulesInCategory(resolvedCategory, uniqueModules);
+	}
+
 	return { source: sourceName, loaded: stamped.length, errors, warnings };
+}
+
+/**
+ * Derive a sensible default category name from the source/file name.
+ * e.g. "golang-basics" → "Golang", "go_advanced.json" → "Go"
+ */
+function _deriveCategory(sourceName: string): string {
+	// Strip extension and clean up
+	const base = sourceName.replace(/\.(json|md)$/i, "").replace(/[-_]/g, " ").trim();
+	// Capitalise first letter of each word for readability
+	return base.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // ─── Parse JSON string safely ─────────────────────────────────────────────────
@@ -188,6 +208,16 @@ export function isJSONFile(file: File): boolean {
 	return (
 		file.type === "application/json" ||
 		file.name.toLowerCase().endsWith(".json")
+	);
+}
+
+// ─── Check if a file is a Markdown file by name ──────────────────────────────
+
+export function isMDFile(file: File): boolean {
+	return (
+		file.type === "text/markdown" ||
+		file.name.toLowerCase().endsWith(".md") ||
+		file.name.toLowerCase().endsWith(".markdown")
 	);
 }
 

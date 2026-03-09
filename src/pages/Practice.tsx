@@ -3,14 +3,15 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, EmptyState, Skeleton } from "@/components/ui";
 import { useQuestions } from "@/hooks/useQuestions";
 import { useStudyStore } from "@/store/useStudyStore";
+import { getCategoryMap, type CategoryMap } from "@/lib/db";
 import {
 	DIFFICULTY_LABELS,
 	DIFFICULTY_STYLES,
 	type Difficulty,
-	MODULE_LIST,
 	type Module,
 	STATUS_LABELS,
 	type StudyStatus,
+	getModuleIcon,
 } from "@/types";
 
 // ─── Module Selector Card ─────────────────────────────────────────────────────
@@ -81,11 +82,19 @@ function ModuleCard({
 
 			<p
 				style={{
-					fontSize: 13,
+					fontSize: 20,
+					marginBottom: 4,
+					lineHeight: 1,
+				}}
+			>
+				{getModuleIcon(module)}
+			</p>
+			<p
+				style={{
+					fontSize: 12,
 					fontWeight: 600,
 					color: selected ? "var(--primary)" : "var(--text)",
 					marginBottom: 4,
-					marginTop: 2,
 				}}
 			>
 				{module}
@@ -533,16 +542,55 @@ export default function Practice() {
 		}
 	}, [searchParams, navigate]);
 
-	// ── Derived stats ──
+	// ── Category map (for grouping modules) ──
+	const [categoryMap, setCategoryMap] = useState<CategoryMap>({});
+
+	useEffect(() => {
+		getCategoryMap().then(setCategoryMap);
+	}, [allQuestions]); // re-fetch when questions change (new imports)
+
+	// ── All unique modules that actually have questions ──
+	const activeModules = useMemo(() => {
+		return [...new Set(allQuestions.map((q) => q.module))];
+	}, [allQuestions]);
+
+	// ── Derived stats — for ALL active modules (not just builtin) ──
 	const moduleStats = useMemo(() => {
-		return MODULE_LIST.map((mod) => {
+		return activeModules.map((mod) => {
 			const qs = allQuestions.filter((q) => q.module === mod);
 			const mastered = qs.filter(
 				(q) => records[q.id]?.status === "mastered",
 			).length;
 			return { module: mod, total: qs.length, mastered };
 		});
-	}, [allQuestions, records]);
+	}, [allQuestions, activeModules, records]);
+
+	// ── Ordered categories with their modules (only those with questions) ──
+	const categoriesWithModules = useMemo(() => {
+		const activeSet = new Set(activeModules);
+
+		// Build ordered list from categoryMap
+		const fromMap = Object.values(categoryMap)
+			.sort((a, b) => {
+				if (a.builtin !== b.builtin) return a.builtin ? -1 : 1;
+				return (a.order ?? 0) - (b.order ?? 0);
+			})
+			.map((cat) => ({
+				name: cat.name,
+				builtin: cat.builtin,
+				modules: cat.modules.filter((m) => activeSet.has(m)),
+			}))
+			.filter((cat) => cat.modules.length > 0);
+
+		// Modules not in any category → "其他" bucket
+		const assignedModules = new Set(fromMap.flatMap((c) => c.modules));
+		const uncategorized = activeModules.filter((m) => !assignedModules.has(m));
+		if (uncategorized.length > 0) {
+			fromMap.push({ name: "其他", builtin: false, modules: uncategorized });
+		}
+
+		return fromMap;
+	}, [categoryMap, activeModules]);
 
 	const difficultyStats = useMemo(() => {
 		const base = { 1: 0, 2: 0, 3: 0 };
@@ -607,6 +655,21 @@ export default function Practice() {
 			prev.includes(mod) ? prev.filter((m) => m !== mod) : [...prev, mod],
 		);
 	}, []);
+
+	// Select / deselect all modules in a category
+	const toggleCategory = useCallback(
+		(catModules: Module[]) => {
+			setSelectedModules((prev) => {
+				const allSelected = catModules.every((m) => prev.includes(m));
+				if (allSelected) {
+					return prev.filter((m) => !catModules.includes(m));
+				}
+				const toAdd = catModules.filter((m) => !prev.includes(m));
+				return [...prev, ...toAdd];
+			});
+		},
+		[],
+	);
 
 	const applyPreset = useCallback((preset: Preset) => {
 		setSelectedModules(preset.modules);
@@ -786,14 +849,14 @@ export default function Practice() {
 							</div>
 						</div>
 
-						{/* Module Selection */}
+						{/* Module Selection — grouped by category */}
 						<div className="animate-fade-in stagger-1">
 							<div
 								style={{
 									display: "flex",
 									alignItems: "center",
 									justifyContent: "space-between",
-									marginBottom: 12,
+									marginBottom: 16,
 								}}
 							>
 								<p
@@ -823,24 +886,135 @@ export default function Practice() {
 									</button>
 								)}
 							</div>
-							<div
-								style={{
-									display: "grid",
-									gridTemplateColumns: "repeat(4, 1fr)",
-									gap: 8,
-								}}
-								className="modules-grid"
-							>
-								{moduleStats.map(({ module, total, mastered }) => (
-									<ModuleCard
-										key={module}
-										module={module}
-										selected={selectedModules.includes(module)}
-										questionCount={total}
-										masteredCount={mastered}
-										onClick={() => toggleModule(module)}
-									/>
-								))}
+
+							{/* Render one section per category */}
+							<div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+								{categoriesWithModules.map((cat) => {
+									const catModules = cat.modules as Module[];
+									const allCatSelected = catModules.length > 0 && catModules.every((m) => selectedModules.includes(m));
+									const someCatSelected = catModules.some((m) => selectedModules.includes(m));
+									return (
+										<div key={cat.name}>
+											{/* Category header */}
+											<div
+												style={{
+													display: "flex",
+													alignItems: "center",
+													gap: 8,
+													marginBottom: 10,
+												}}
+											>
+												<button
+													onClick={() => toggleCategory(catModules)}
+													title={allCatSelected ? "取消全选此分类" : "全选此分类"}
+													style={{
+														display: "flex",
+														alignItems: "center",
+														gap: 6,
+														background: "none",
+														border: "none",
+														cursor: "pointer",
+														padding: 0,
+													}}
+												>
+													{/* Mini checkbox */}
+													<span
+														style={{
+															width: 14,
+															height: 14,
+															borderRadius: 4,
+															border: allCatSelected
+																? "1.5px solid var(--primary)"
+																: someCatSelected
+																	? "1.5px solid var(--primary)"
+																	: "1.5px solid var(--border)",
+															background: allCatSelected
+																? "var(--primary)"
+																: someCatSelected
+																	? "var(--primary-light)"
+																	: "transparent",
+															display: "flex",
+															alignItems: "center",
+															justifyContent: "center",
+															flexShrink: 0,
+															transition: "all 0.15s",
+														}}
+													>
+														{allCatSelected && (
+															<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+																<polyline points="20 6 9 17 4 12" />
+															</svg>
+														)}
+														{someCatSelected && !allCatSelected && (
+															<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+																<line x1="5" y1="12" x2="19" y2="12" />
+															</svg>
+														)}
+													</span>
+													<span
+														style={{
+															fontSize: 12,
+															fontWeight: 700,
+															color: allCatSelected || someCatSelected ? "var(--primary)" : "var(--text-2)",
+															letterSpacing: "0.04em",
+															textTransform: "uppercase",
+															transition: "color 0.15s",
+														}}
+													>
+														{cat.name}
+													</span>
+												</button>
+												{!cat.builtin && (
+													<span
+														style={{
+															fontSize: 10,
+															fontWeight: 500,
+															color: "var(--text-3)",
+															background: "var(--surface-3)",
+															border: "1px solid var(--border-subtle)",
+															borderRadius: 4,
+															padding: "1px 5px",
+														}}
+													>
+														自定义
+													</span>
+												)}
+												<span
+													style={{
+														fontSize: 11,
+														color: "var(--text-3)",
+													}}
+												>
+													{catModules.length} 个模块 · {catModules.reduce((sum, m) => sum + (moduleStats.find((s) => s.module === m)?.total ?? 0), 0)} 道题
+												</span>
+											</div>
+
+											{/* Module cards */}
+											<div
+												style={{
+													display: "grid",
+													gridTemplateColumns: "repeat(4, 1fr)",
+													gap: 8,
+												}}
+												className="modules-grid"
+											>
+												{catModules.map((mod) => {
+													const stat = moduleStats.find((s) => s.module === mod);
+													return (
+														<ModuleCard
+															key={mod}
+															module={mod}
+															selected={selectedModules.includes(mod)}
+															questionCount={stat?.total ?? 0}
+															masteredCount={stat?.mastered ?? 0}
+															onClick={() => toggleModule(mod)}
+														/>
+													);
+												})}
+											</div>
+										</div>
+									);
+								})}
 							</div>
 						</div>
 
