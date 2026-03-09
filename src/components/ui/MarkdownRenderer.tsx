@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -8,22 +9,98 @@ interface MarkdownRendererProps {
 	className?: string;
 }
 
+// ─── Copy Button ──────────────────────────────────────────────────────────────
+
+function CopyButton({ code }: { code: string }) {
+	const [copied, setCopied] = useState(false);
+
+	const handleCopy = useCallback(async () => {
+		try {
+			await navigator.clipboard.writeText(code);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1800);
+		} catch {
+			// fallback for older browsers
+			const el = document.createElement("textarea");
+			el.value = code;
+			el.style.position = "fixed";
+			el.style.opacity = "0";
+			document.body.appendChild(el);
+			el.select();
+			document.execCommand("copy");
+			document.body.removeChild(el);
+			setCopied(true);
+			setTimeout(() => setCopied(false), 1800);
+		}
+	}, [code]);
+
+	return (
+		<button
+			onClick={handleCopy}
+			className={`code-copy-btn${copied ? " copied" : ""}`}
+			aria-label={copied ? "已复制" : "复制代码"}
+		>
+			{copied ? (
+				<>
+					<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+						<polyline points="20 6 9 17 4 12" />
+					</svg>
+					已复制
+				</>
+			) : (
+				<>
+					<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+						<rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+						<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+					</svg>
+					复制
+				</>
+			)}
+		</button>
+	);
+}
+
+// ─── Extract plain text from React children ───────────────────────────────────
+
+function extractText(children: React.ReactNode): string {
+	if (typeof children === "string") return children;
+	if (typeof children === "number") return String(children);
+	if (Array.isArray(children)) return children.map(extractText).join("");
+	if (children && typeof children === "object" && "props" in (children as object)) {
+		const el = children as React.ReactElement<{ children?: React.ReactNode }>;
+		return extractText(el.props.children);
+	}
+	return "";
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
 const components: Components = {
 	// Code blocks
 	pre({ children, ...props }) {
+		// Extract raw text for the copy button
+		const codeText = extractText(children);
+
 		return (
-			<pre
-				className="
-          font-mono text-sm
-          bg-[var(--color-surface-secondary)]
-          border border-[var(--color-border-subtle)]
-          rounded-xl p-4 overflow-x-auto
-          my-4 leading-relaxed
-        "
-				{...props}
-			>
-				{children}
-			</pre>
+			<div className="code-block-wrap">
+				<pre
+					style={{
+						fontFamily: "var(--font-mono)",
+						fontSize: "0.8125rem",
+						background: "var(--surface-2)",
+						border: "1px solid var(--border-subtle)",
+						borderRadius: 10,
+						padding: "14px 16px",
+						overflowX: "auto",
+						margin: "14px 0",
+						lineHeight: 1.65,
+					}}
+					{...props}
+				>
+					{children}
+				</pre>
+				<CopyButton code={codeText} />
+			</div>
 		);
 	},
 
@@ -32,14 +109,16 @@ const components: Components = {
 		if (isInline) {
 			return (
 				<code
-					className="
-            font-mono text-[0.85em]
-            bg-[var(--color-surface-tertiary)]
-            border border-[var(--color-border-subtle)]
-            rounded px-1.5 py-0.5
-            text-[var(--color-primary)]
-            break-words
-          "
+					style={{
+						fontFamily: "var(--font-mono)",
+						fontSize: "0.82em",
+						background: "var(--surface-3)",
+						border: "1px solid var(--border-subtle)",
+						borderRadius: 4,
+						padding: "1px 5px",
+						color: "var(--primary)",
+						wordBreak: "break-word",
+					}}
 					{...props}
 				>
 					{children}
@@ -48,7 +127,8 @@ const components: Components = {
 		}
 		return (
 			<code
-				className={`${className ?? ""} text-[var(--color-text)]`}
+				className={className ?? ""}
+				style={{ color: "var(--text)" }}
 				{...props}
 			>
 				{children}
@@ -60,7 +140,14 @@ const components: Components = {
 	h1({ children, ...props }) {
 		return (
 			<h1
-				className="text-xl font-semibold text-[var(--color-text)] mt-6 mb-3 first:mt-0"
+				style={{
+					fontSize: "1.25rem",
+					fontWeight: 600,
+					color: "var(--text)",
+					marginTop: "1.5em",
+					marginBottom: "0.6em",
+					lineHeight: 1.35,
+				}}
 				{...props}
 			>
 				{children}
@@ -70,7 +157,14 @@ const components: Components = {
 	h2({ children, ...props }) {
 		return (
 			<h2
-				className="text-base font-semibold text-[var(--color-text)] mt-5 mb-2.5 first:mt-0"
+				style={{
+					fontSize: "1.05rem",
+					fontWeight: 600,
+					color: "var(--text)",
+					marginTop: "1.4em",
+					marginBottom: "0.5em",
+					lineHeight: 1.35,
+				}}
 				{...props}
 			>
 				{children}
@@ -80,7 +174,14 @@ const components: Components = {
 	h3({ children, ...props }) {
 		return (
 			<h3
-				className="text-sm font-semibold text-[var(--color-text)] mt-4 mb-2 first:mt-0"
+				style={{
+					fontSize: "0.9375rem",
+					fontWeight: 600,
+					color: "var(--text)",
+					marginTop: "1.2em",
+					marginBottom: "0.4em",
+					lineHeight: 1.4,
+				}}
 				{...props}
 			>
 				{children}
@@ -90,7 +191,13 @@ const components: Components = {
 	h4({ children, ...props }) {
 		return (
 			<h4
-				className="text-sm font-medium text-[var(--color-text)] mt-3 mb-1.5 first:mt-0"
+				style={{
+					fontSize: "0.9375rem",
+					fontWeight: 500,
+					color: "var(--text)",
+					marginTop: "1em",
+					marginBottom: "0.3em",
+				}}
 				{...props}
 			>
 				{children}
@@ -102,7 +209,12 @@ const components: Components = {
 	p({ children, ...props }) {
 		return (
 			<p
-				className="text-[0.9375rem] text-[var(--color-text)] leading-7 mb-3.5 last:mb-0"
+				style={{
+					fontSize: "0.9375rem",
+					color: "var(--text)",
+					lineHeight: 1.8,
+					marginBottom: "0.85em",
+				}}
 				{...props}
 			>
 				{children}
@@ -114,7 +226,12 @@ const components: Components = {
 	ul({ children, ...props }) {
 		return (
 			<ul
-				className="list-disc pl-5 mb-3.5 space-y-1.5 text-[var(--color-text)]"
+				style={{
+					listStyle: "disc",
+					paddingLeft: "1.4em",
+					marginBottom: "0.85em",
+					color: "var(--text)",
+				}}
 				{...props}
 			>
 				{children}
@@ -124,7 +241,12 @@ const components: Components = {
 	ol({ children, ...props }) {
 		return (
 			<ol
-				className="list-decimal pl-5 mb-3.5 space-y-1.5 text-[var(--color-text)]"
+				style={{
+					listStyle: "decimal",
+					paddingLeft: "1.4em",
+					marginBottom: "0.85em",
+					color: "var(--text)",
+				}}
 				{...props}
 			>
 				{children}
@@ -134,7 +256,12 @@ const components: Components = {
 	li({ children, ...props }) {
 		return (
 			<li
-				className="text-[0.9375rem] leading-7 text-[var(--color-text)] pl-0.5"
+				style={{
+					fontSize: "0.9375rem",
+					lineHeight: 1.75,
+					color: "var(--text)",
+					marginBottom: "0.25em",
+				}}
 				{...props}
 			>
 				{children}
@@ -146,12 +273,13 @@ const components: Components = {
 	blockquote({ children, ...props }) {
 		return (
 			<blockquote
-				className="
-          border-l-[3px] border-[var(--color-primary)]
-          pl-4 my-4
-          text-[var(--color-text-secondary)]
-          italic
-        "
+				style={{
+					borderLeft: "3px solid var(--primary)",
+					paddingLeft: "1em",
+					margin: "1.2em 0",
+					color: "var(--text-2)",
+					fontStyle: "italic",
+				}}
 				{...props}
 			>
 				{children}
@@ -163,7 +291,11 @@ const components: Components = {
 	hr({ ...props }) {
 		return (
 			<hr
-				className="border-none border-t border-[var(--color-border)] my-5"
+				style={{
+					border: "none",
+					borderTop: "1px solid var(--border)",
+					margin: "1.4em 0",
+				}}
 				{...props}
 			/>
 		);
@@ -172,14 +304,14 @@ const components: Components = {
 	// Strong / Em
 	strong({ children, ...props }) {
 		return (
-			<strong className="font-semibold text-[var(--color-text)]" {...props}>
+			<strong style={{ fontWeight: 600, color: "var(--text)" }} {...props}>
 				{children}
 			</strong>
 		);
 	},
 	em({ children, ...props }) {
 		return (
-			<em className="italic text-[var(--color-text-secondary)]" {...props}>
+			<em style={{ fontStyle: "italic", color: "var(--text-2)" }} {...props}>
 				{children}
 			</em>
 		);
@@ -192,10 +324,19 @@ const components: Components = {
 				href={href}
 				target="_blank"
 				rel="noopener noreferrer"
-				className="
-          text-[var(--color-primary)] underline underline-offset-2
-          hover:opacity-75 transition-opacity duration-150
-        "
+				style={{
+					color: "var(--primary)",
+					textDecoration: "underline",
+					textUnderlineOffset: 2,
+					textDecorationColor: "rgba(var(--primary-rgb), 0.4)",
+					transition: "text-decoration-color 0.15s",
+				}}
+				onMouseEnter={(e) => {
+					(e.currentTarget as HTMLElement).style.textDecorationColor = "var(--primary)";
+				}}
+				onMouseLeave={(e) => {
+					(e.currentTarget as HTMLElement).style.textDecorationColor = "rgba(var(--primary-rgb), 0.4)";
+				}}
 				{...props}
 			>
 				{children}
@@ -206,8 +347,18 @@ const components: Components = {
 	// Table
 	table({ children, ...props }) {
 		return (
-			<div className="overflow-x-auto my-4 rounded-xl border border-[var(--color-border)]">
-				<table className="w-full text-sm border-collapse" {...props}>
+			<div
+				style={{
+					overflowX: "auto",
+					margin: "1em 0",
+					borderRadius: 10,
+					border: "1px solid var(--border)",
+				}}
+			>
+				<table
+					style={{ width: "100%", fontSize: "0.875rem", borderCollapse: "collapse" }}
+					{...props}
+				>
 					{children}
 				</table>
 			</div>
@@ -215,25 +366,18 @@ const components: Components = {
 	},
 	thead({ children, ...props }) {
 		return (
-			<thead className="bg-[var(--color-surface-secondary)]" {...props}>
+			<thead style={{ background: "var(--surface-2)" }} {...props}>
 				{children}
 			</thead>
 		);
 	},
 	tbody({ children, ...props }) {
-		return (
-			<tbody
-				className="divide-y divide-[var(--color-border-subtle)]"
-				{...props}
-			>
-				{children}
-			</tbody>
-		);
+		return <tbody {...props}>{children}</tbody>;
 	},
 	tr({ children, ...props }) {
 		return (
 			<tr
-				className="hover:bg-[var(--color-surface-secondary)] transition-colors duration-100"
+				style={{ borderTop: "1px solid var(--border-subtle)" }}
 				{...props}
 			>
 				{children}
@@ -243,10 +387,15 @@ const components: Components = {
 	th({ children, ...props }) {
 		return (
 			<th
-				className="
-          px-4 py-2.5 text-left text-xs font-semibold
-          text-[var(--color-text-secondary)] uppercase tracking-wider
-        "
+				style={{
+					padding: "8px 14px",
+					textAlign: "left",
+					fontSize: "0.75rem",
+					fontWeight: 600,
+					color: "var(--text-2)",
+					textTransform: "uppercase",
+					letterSpacing: "0.05em",
+				}}
 				{...props}
 			>
 				{children}
@@ -256,7 +405,11 @@ const components: Components = {
 	td({ children, ...props }) {
 		return (
 			<td
-				className="px-4 py-2.5 text-[var(--color-text-secondary)] text-sm"
+				style={{
+					padding: "8px 14px",
+					color: "var(--text-2)",
+					fontSize: "0.875rem",
+				}}
 				{...props}
 			>
 				{children}

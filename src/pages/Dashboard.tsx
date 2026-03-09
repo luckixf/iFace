@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Button, EmptyState, SegmentedRing, Skeleton } from "@/components/ui";
 import { useQuestions } from "@/hooks/useQuestions";
-import { useStudyStore } from "@/store/useStudyStore";
+import { useStudyStore, type StreakData } from "@/store/useStudyStore";
 import {
 	DIFFICULTY_LABELS,
 	MODULE_LIST,
@@ -10,6 +10,160 @@ import {
 	STATUS_LABELS,
 	type StudyStatus,
 } from "@/types";
+
+// ─── Streak Banner ────────────────────────────────────────────────────────────
+
+const STREAK_DISMISS_KEY = "iface_streak_banner_dismissed_date";
+
+function StreakBanner({ streak }: { streak: StreakData }) {
+	const [dismissed, setDismissed] = useState(() => {
+		try {
+			const stored = localStorage.getItem(STREAK_DISMISS_KEY);
+			if (!stored) return false;
+			const today = new Date().toISOString().slice(0, 10);
+			return stored === today;
+		} catch {
+			return false;
+		}
+	});
+	const [visible, setVisible] = useState(false);
+
+	// Animate in after mount
+	useEffect(() => {
+		const t = setTimeout(() => setVisible(true), 80);
+		return () => clearTimeout(t);
+	}, []);
+
+	const handleDismiss = useCallback(() => {
+		try {
+			const today = new Date().toISOString().slice(0, 10);
+			localStorage.setItem(STREAK_DISMISS_KEY, today);
+		} catch {
+			// ignore
+		}
+		setDismissed(true);
+	}, []);
+
+	if (dismissed || streak.todayCount === 0) return null;
+
+	// Pick the best milestone message
+	const milestones: { min: number; emoji: string; msg: string; color: string; bg: string; border: string }[] = [
+		{ min: 50, emoji: "🏆", msg: "史诗级连击！你已经达到传说级别！", color: "#f59e0b", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.18)" },
+		{ min: 20, emoji: "👑", msg: "王者连击！专注力惊人！",           color: "#6366f1", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.18)" },
+		{ min: 10, emoji: "🚀", msg: "10 连击！你已进入深度专注状态！",  color: "#10b981", bg: "rgba(16,185,129,0.06)", border: "rgba(16,185,129,0.18)" },
+		{ min: 5,  emoji: "⚡", msg: "5 连击！手感火热，继续冲！",       color: "#6366f1", bg: "rgba(99,102,241,0.06)", border: "rgba(99,102,241,0.18)" },
+		{ min: 3,  emoji: "🔥", msg: "连击开启！越刷越顺！",             color: "#f59e0b", bg: "rgba(245,158,11,0.06)", border: "rgba(245,158,11,0.18)" },
+		{ min: 1,  emoji: "✅", msg: "今日已作答，坚持就是胜利！",        color: "#10b981", bg: "rgba(16,185,129,0.06)", border: "rgba(16,185,129,0.18)" },
+	];
+
+	const hit = milestones.find((m) => streak.currentStreak >= m.min) ?? milestones[milestones.length - 1];
+
+	return (
+		<div
+			style={{
+				display: "flex",
+				alignItems: "center",
+				gap: 12,
+				padding: "12px 16px",
+				borderRadius: 12,
+				background: hit.bg,
+				border: `1px solid ${hit.border}`,
+				marginBottom: 20,
+				opacity: visible ? 1 : 0,
+				transform: visible ? "translateY(0)" : "translateY(-6px)",
+				transition: "opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out)",
+			}}
+		>
+			{/* Emoji */}
+			<span style={{ fontSize: 22, flexShrink: 0, lineHeight: 1 }}>{hit.emoji}</span>
+
+			{/* Text */}
+			<div style={{ flex: 1, minWidth: 0 }}>
+				<p style={{ fontSize: 13, fontWeight: 600, color: hit.color, marginBottom: 1 }}>
+					{hit.msg}
+				</p>
+				<div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+					<span style={{ fontSize: 12, color: "var(--text-3)" }}>
+						今日作答{" "}
+						<span style={{ fontWeight: 600, color: "var(--text-2)", fontVariantNumeric: "tabular-nums" }}>
+							{streak.todayCount}
+						</span>{" "}
+						题
+					</span>
+					{streak.currentStreak >= 2 && (
+						<span style={{ fontSize: 12, color: "var(--text-3)" }}>
+							🔥 当前连击{" "}
+							<span style={{ fontWeight: 600, color: hit.color, fontVariantNumeric: "tabular-nums" }}>
+								{streak.currentStreak}
+							</span>
+						</span>
+					)}
+					{streak.bestStreak > 0 && (
+						<span style={{ fontSize: 12, color: "var(--text-3)" }}>
+							最高记录{" "}
+							<span style={{ fontWeight: 600, color: "var(--text-2)", fontVariantNumeric: "tabular-nums" }}>
+								{streak.bestStreak}
+							</span>
+						</span>
+					)}
+				</div>
+			</div>
+
+			{/* Progress mini bar */}
+			{streak.todayCount > 0 && (
+				<div
+					style={{
+						display: "flex",
+						flexDirection: "column",
+						alignItems: "flex-end",
+						gap: 4,
+						flexShrink: 0,
+					}}
+				>
+					<span style={{ fontSize: 11, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
+						目标 10 题
+					</span>
+					<div style={{ width: 80, height: 4, background: "var(--border)", borderRadius: 99, overflow: "hidden" }}>
+						<div
+							style={{
+								height: "100%",
+								background: hit.color,
+								borderRadius: 99,
+								width: `${Math.min(100, (streak.todayCount / 10) * 100)}%`,
+								transition: "width 0.6s var(--ease-out)",
+							}}
+						/>
+					</div>
+					{streak.todayCount >= 10 && (
+						<span style={{ fontSize: 10, color: hit.color, fontWeight: 600 }}>今日目标达成 🎉</span>
+					)}
+				</div>
+			)}
+
+			{/* Dismiss */}
+			<button
+				onClick={handleDismiss}
+				style={{
+					background: "none",
+					border: "none",
+					color: "var(--text-3)",
+					cursor: "pointer",
+					padding: "2px 4px",
+					borderRadius: 4,
+					fontSize: 16,
+					lineHeight: 1,
+					flexShrink: 0,
+					transition: "color 0.15s",
+				}}
+				onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text)"; }}
+				onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "var(--text-3)"; }}
+				aria-label="关闭"
+			>
+				×
+			</button>
+		</div>
+	);
+}
 
 // ─── Module Progress Bar ──────────────────────────────────────────────────────
 
@@ -200,6 +354,8 @@ function DailyQuestionCard({
 				transition: "border-color 0.15s, background 0.15s",
 				animationDelay: `${index * 0.04}s`,
 				background: "var(--surface)",
+				minWidth: 0,
+				overflow: "hidden",
 			}}
 			onMouseEnter={(e) => {
 				(e.currentTarget as HTMLElement).style.borderColor =
@@ -233,7 +389,7 @@ function DailyQuestionCard({
 			</div>
 
 			{/* Content */}
-			<div style={{ flex: 1, minWidth: 0 }}>
+			<div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
 				<p
 					style={{
 						fontSize: 13,
@@ -244,6 +400,7 @@ function DailyQuestionCard({
 						WebkitLineClamp: 2,
 						WebkitBoxOrient: "vertical",
 						marginBottom: 6,
+						wordBreak: "break-word",
 					}}
 				>
 					{q.question}
@@ -252,7 +409,7 @@ function DailyQuestionCard({
 					style={{
 						display: "flex",
 						alignItems: "center",
-						gap: 8,
+						gap: 6,
 						flexWrap: "wrap",
 					}}
 				>
@@ -538,7 +695,7 @@ const IconClock = () => (
 export default function Dashboard() {
 	const { questions, allQuestions, loading, initializing, getDailyIds } =
 		useQuestions();
-	const { records, getStatusCounts, getEstimatedDays } = useStudyStore();
+	const { records, getStatusCounts, getEstimatedDays, streak } = useStudyStore();
 
 	const [dailyIds, setDailyIds] = useState<string[]>([]);
 	const [dailyLoading, setDailyLoading] = useState(true);
@@ -603,6 +760,9 @@ export default function Dashboard() {
 
 	return (
 		<div className="page-container">
+			{/* ── Streak Banner ── */}
+			{!hasNoQuestions && <StreakBanner streak={streak} />}
+
 			{/* ── Greeting ── */}
 			<div className="animate-fade-in" style={{ marginBottom: 28 }}>
 				<h1
@@ -956,6 +1116,7 @@ export default function Dashboard() {
 									gridTemplateColumns: "repeat(2, 1fr)",
 									gap: 8,
 								}}
+								className="daily-grid"
 							>
 								{Array.from({ length: 6 }).map((_, i) => (
 									<div
@@ -996,6 +1157,7 @@ export default function Dashboard() {
 									gridTemplateColumns: "repeat(2, 1fr)",
 									gap: 8,
 								}}
+								className="daily-grid"
 							>
 								{dailyIds.map((id, i) => (
 									<DailyQuestionCard
@@ -1017,12 +1179,31 @@ export default function Dashboard() {
 					.main-grid {
 						grid-template-columns: 1fr !important;
 					}
+					.daily-grid {
+						grid-template-columns: 1fr !important;
+					}
 				}
 				@media (max-width: 640px) {
 					.stats-grid {
 						grid-template-columns: repeat(2, 1fr) !important;
 					}
 					.main-grid {
+						grid-template-columns: 1fr !important;
+					}
+					.daily-grid {
+						grid-template-columns: 1fr !important;
+					}
+					.page-container {
+						padding-left: 12px !important;
+						padding-right: 12px !important;
+						overflow-x: hidden;
+					}
+				}
+				@media (max-width: 480px) {
+					.stats-grid {
+						grid-template-columns: repeat(2, 1fr) !important;
+					}
+					.daily-grid {
 						grid-template-columns: 1fr !important;
 					}
 				}

@@ -9,6 +9,7 @@ export interface AIConfig {
 	model: string;
 	temperature: number;
 	maxTokens: number;
+	systemPrompt: string;
 }
 
 export interface AIMessage {
@@ -30,6 +31,27 @@ const SESSIONS_KEY = "iface_ai_sessions";
 
 // ─── Defaults ─────────────────────────────────────────────────────────────────
 
+export const DEFAULT_SYSTEM_PROMPT = `你是一位专业的前端面试教练，专注于帮助候选人深度理解并清晰表达前端技术知识。
+
+## 核心原则
+- **简洁优先**：每个回答聚焦 1-3 个核心点，避免冗长罗列
+- **口语友好**：输出适合面试口头表达，而非照本宣科的文档
+- **深度优于广度**：宁可把一个概念讲透，也不要泛泛列举
+- **即时可用**：给出候选人能立刻套用的表达结构和关键词
+
+## 回答格式规范
+1. 先给出 **1 句话核心结论**（面试时第一句话就要命中要害）
+2. 再用 **2-4 个要点** 展开（每点不超过 2 行）
+3. 如有必要，附上 **1 个类比或代码片段** 加深印象
+4. 最后可指出 **1 个加分延伸点**（区分候选人层次）
+
+## 你的能力边界
+- 只回答与前端开发、面试相关的问题
+- 遇到与主题无关的问题，礼貌引导回面试场景
+- 不替用户"写"答案，而是帮用户"理解"后自己说出来
+
+使用中文回复。`;
+
 export const DEFAULT_AI_CONFIG: AIConfig = {
 	enabled: false,
 	apiKey: "",
@@ -37,6 +59,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
 	model: "gpt-4o-mini",
 	temperature: 0.7,
 	maxTokens: 2000,
+	systemPrompt: DEFAULT_SYSTEM_PROMPT,
 };
 
 export const PRESET_MODELS = [
@@ -171,24 +194,8 @@ function reducer(state: AIStoreState, action: AIAction): AIStoreState {
 
 // ─── System Prompt Builder ────────────────────────────────────────────────────
 
-export function buildSystemPrompt(): string {
-	return `你是一位专业的前端面试教练，专注于帮助候选人更好地理解和回答前端技术面试题。
-
-你的职责：
-1. **解析题目**：深度分析题目考察的核心知识点和出题意图
-2. **优化答案**：帮助候选人组织更清晰、更有层次的答案结构
-3. **面试技巧**：提供实际面试中如何表达、展现思路的建议
-4. **延伸拓展**：指出相关的高频考点和潜在追问方向
-5. **纠正误区**：指出候选人理解中的偏差或不完整的地方
-
-回答风格：
-- 使用中文回复
-- 结构清晰，善用列表和要点
-- 结合实际项目经验给出建议
-- 区分"能说出来"和"深刻理解"的差异
-- 对于代码题，提供思路分析和关键代码片段
-
-注意：你是辅助工具，重点是帮助候选人真正理解知识，而不是简单地背诵答案。`;
+export function buildSystemPrompt(customPrompt?: string): string {
+	return customPrompt?.trim() || DEFAULT_SYSTEM_PROMPT;
 }
 
 export function buildQuestionContext(
@@ -290,7 +297,7 @@ export function useAIStore() {
 			dispatch({ type: "ADD_MESSAGE", questionId, message: userMsg });
 
 			const messages: AIMessage[] = [
-				{ role: "system", content: buildSystemPrompt() },
+					{ role: "system", content: buildSystemPrompt(stateRef.current.config.systemPrompt) },
 				...contextMessages,
 				userMsg,
 			];

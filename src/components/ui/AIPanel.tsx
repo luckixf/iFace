@@ -526,9 +526,11 @@ interface AIPanelProps {
 	question: Question;
 	answerVisible: boolean;
 	onOpenSettings: () => void;
+	/** When true, the internal PanelHeader is hidden (the parent drawer provides its own) */
+	headless?: boolean;
 }
 
-export function AIPanel({ question, answerVisible, onOpenSettings }: AIPanelProps) {
+export function AIPanel({ question, answerVisible, onOpenSettings, headless = false }: AIPanelProps) {
 	const {
 		config,
 		streaming,
@@ -547,12 +549,39 @@ export function AIPanel({ question, answerVisible, onOpenSettings }: AIPanelProp
 	const [error, setError] = useState<string | null>(null);
 
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
+	// Track whether user has manually scrolled up
+	const userScrolledUp = useRef(false);
+	const isStreamingRef = useRef(isStreaming);
+	isStreamingRef.current = isStreaming;
 
-	// Auto-scroll to bottom on new messages
+	// Detect manual scroll: if user scrolls up during streaming, pause auto-scroll
+	const handleScroll = useCallback(() => {
+		const el = messagesContainerRef.current;
+		if (!el) return;
+		const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+		// If within 40px of bottom → re-enable auto-scroll
+		if (distanceFromBottom < 40) {
+			userScrolledUp.current = false;
+		} else if (isStreamingRef.current) {
+			// Only pause when streaming (manual scroll up during AI reply)
+			userScrolledUp.current = true;
+		}
+	}, []);
+
+	// Auto-scroll to bottom on new messages/chunks, unless user scrolled up
 	useEffect(() => {
+		if (userScrolledUp.current) return;
 		messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages, streamingText]);
+
+	// When streaming ends, reset the flag so next message auto-scrolls
+	useEffect(() => {
+		if (!isStreaming) {
+			userScrolledUp.current = false;
+		}
+	}, [isStreaming]);
 
 	// Reset streaming text when done
 	useEffect(() => {
@@ -641,17 +670,19 @@ export function AIPanel({ question, answerVisible, onOpenSettings }: AIPanelProp
 					display: "flex",
 					flexDirection: "column",
 					height: "100%",
-					background: "var(--surface)",
-					borderRadius: 14,
-					border: "1px solid var(--border-subtle)",
+					background: headless ? "transparent" : "var(--surface)",
+					borderRadius: headless ? 0 : 14,
+					border: headless ? "none" : "1px solid var(--border-subtle)",
 					overflow: "hidden",
 				}}
 			>
-				<PanelHeader
-					title="AI 助手"
-					hasMessages={false}
-					onClear={handleClear}
-				/>
+				{!headless && (
+					<PanelHeader
+						title="AI 助手"
+						hasMessages={false}
+						onClear={handleClear}
+					/>
+				)}
 				<NotConfigured onOpenSettings={onOpenSettings} />
 			</div>
 		);
@@ -663,21 +694,25 @@ export function AIPanel({ question, answerVisible, onOpenSettings }: AIPanelProp
 				display: "flex",
 				flexDirection: "column",
 				height: "100%",
-				background: "var(--surface)",
-				borderRadius: 14,
-				border: "1px solid var(--border-subtle)",
+				background: headless ? "transparent" : "var(--surface)",
+				borderRadius: headless ? 0 : 14,
+				border: headless ? "none" : "1px solid var(--border-subtle)",
 				overflow: "hidden",
 			}}
 		>
-			<PanelHeader
-				title="AI 助手"
-				hasMessages={messages.length > 0}
-				onClear={handleClear}
-				model={config.model}
-			/>
+			{!headless && (
+				<PanelHeader
+					title="AI 助手"
+					hasMessages={messages.length > 0}
+					onClear={handleClear}
+					model={config.model}
+				/>
+			)}
 
 			{/* Messages area */}
 			<div
+				ref={messagesContainerRef}
+				onScroll={handleScroll}
 				style={{
 					flex: 1,
 					overflowY: "auto",

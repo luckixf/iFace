@@ -1,4 +1,63 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
+
+// ─── Streak / Gamification ────────────────────────────────────────────────────
+
+export interface StreakData {
+	currentStreak: number;   // consecutive questions answered today
+	bestStreak: number;      // all-time best streak in a single session
+	todayCount: number;      // total questions marked today
+	lastActivityDate: string; // ISO date string "YYYY-MM-DD"
+}
+
+const STREAK_KEY = "iface_streak";
+
+function todayStr(): string {
+	return new Date().toISOString().slice(0, 10);
+}
+
+function loadStreak(): StreakData {
+	try {
+		const raw = localStorage.getItem(STREAK_KEY);
+		if (raw) {
+			const parsed: StreakData = JSON.parse(raw);
+			// Reset today's count if it's a new day
+			if (parsed.lastActivityDate !== todayStr()) {
+				return { ...parsed, currentStreak: 0, todayCount: 0, lastActivityDate: todayStr() };
+			}
+			return parsed;
+		}
+	} catch {}
+	return { currentStreak: 0, bestStreak: 0, todayCount: 0, lastActivityDate: todayStr() };
+}
+
+function saveStreak(data: StreakData): void {
+	try {
+		localStorage.setItem(STREAK_KEY, JSON.stringify(data));
+	} catch {}
+}
+
+// ─── Study Mode ───────────────────────────────────────────────────────────────
+
+export type StudyMode =
+	| "answer-first"      // 先作答，再展开参考答案（默认）
+	| "answer-alongside"  // 边看答案边做笔记
+	| "memory-only";      // 纯记忆模式，不作答直接翻答案
+
+const STUDY_MODE_KEY = "iface_study_mode";
+
+function loadStudyMode(): StudyMode {
+	try {
+		const v = localStorage.getItem(STUDY_MODE_KEY);
+		if (v === "answer-first" || v === "answer-alongside" || v === "memory-only") return v;
+	} catch {}
+	return "answer-first";
+}
+
+function saveStudyMode(mode: StudyMode): void {
+	try {
+		localStorage.setItem(STUDY_MODE_KEY, mode);
+	} catch {}
+}
 import {
 	clearAllStudyRecords,
 	deleteStudyRecord,
@@ -43,15 +102,20 @@ function applyThemeToDom(theme: "light" | "dark"): void {
 interface StoreState {
 	records: StudyRecordMap;
 	theme: "light" | "dark";
+	studyMode: StudyMode;
+	streak: StreakData;
 	initialized: boolean;
 }
 
 type Action =
-	| { type: "INIT"; records: StudyRecordMap; theme: "light" | "dark" }
+	| { type: "INIT"; records: StudyRecordMap; theme: "light" | "dark"; studyMode: StudyMode; streak: StreakData }
 	| { type: "SET_RECORD"; record: StudyRecord }
 	| { type: "DELETE_RECORD"; questionId: string }
 	| { type: "RESET_RECORDS" }
-	| { type: "SET_THEME"; theme: "light" | "dark" };
+	| { type: "SET_THEME"; theme: "light" | "dark" }
+	| { type: "SET_STUDY_MODE"; studyMode: StudyMode }
+	| { type: "INCREMENT_STREAK" }
+	| { type: "RESET_STREAK" };
 
 function reducer(state: StoreState, action: Action): StoreState {
 	switch (action.type) {
@@ -60,6 +124,8 @@ function reducer(state: StoreState, action: Action): StoreState {
 				...state,
 				records: action.records,
 				theme: action.theme,
+				studyMode: action.studyMode,
+				streak: action.streak,
 				initialized: true,
 			};
 		case "SET_RECORD":
@@ -79,6 +145,25 @@ function reducer(state: StoreState, action: Action): StoreState {
 			return { ...state, records: {} };
 		case "SET_THEME":
 			return { ...state, theme: action.theme };
+		case "SET_STUDY_MODE":
+			return { ...state, studyMode: action.studyMode };
+		case "INCREMENT_STREAK": {
+			const today = todayStr();
+			const prev = state.streak;
+			const newStreak: StreakData = {
+				currentStreak: prev.lastActivityDate === today ? prev.currentStreak + 1 : 1,
+				bestStreak: Math.max(prev.bestStreak, prev.lastActivityDate === today ? prev.currentStreak + 1 : 1),
+				todayCount: prev.lastActivityDate === today ? prev.todayCount + 1 : 1,
+				lastActivityDate: today,
+			};
+			saveStreak(newStreak);
+			return { ...state, streak: newStreak };
+		}
+		case "RESET_STREAK": {
+			const reset: StreakData = { currentStreak: 0, bestStreak: state.streak.bestStreak, todayCount: 0, lastActivityDate: todayStr() };
+			saveStreak(reset);
+			return { ...state, streak: reset };
+		}
 		default:
 			return state;
 	}
@@ -104,12 +189,25 @@ function broadcast(action: Action) {
 	} catch {}
 }
 
+// ─── Session Review Guard (module-level, shared across all hook instances) ────
+// Tracks which questionIds have already had reviewCount incremented in the
+// current browser session visit. Cleared per question when navigating away.
+
+const _sessionReviewed = new Set<string>();
+
+/** Call this when leaving a question page to reset its session review guard. */
+export function clearSessionReview(questionId: string) {
+	_sessionReviewed.delete(questionId);
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useStudyStore() {
 	const [state, dispatch] = useReducer(reducer, {
 		records: {},
 		theme: loadTheme(),
+		studyMode: loadStudyMode(),
+		streak: loadStreak(),
 		initialized: false,
 	});
 
@@ -122,10 +220,12 @@ export function useStudyStore() {
 		const theme = loadTheme();
 		applyThemeToDom(theme);
 
+		const studyMode = loadStudyMode();
+		const streak = loadStreak();
 		getAllStudyRecords().then((records) => {
 			const map: StudyRecordMap = {};
 			for (const r of records) map[r.questionId] = r;
-			dispatch({ type: "INIT", records: map, theme });
+			dispatch({ type: "INIT", records: map, theme, studyMode, streak });
 		});
 	}, []);
 
@@ -151,17 +251,28 @@ export function useStudyStore() {
 	const setStatus = useCallback(
 		async (questionId: string, status: StudyStatus) => {
 			const existing = stateRef.current.records[questionId];
+
+			// Only increment reviewCount the first time this question is marked
+			// in the current page session (prevents multi-press inflation).
+			const alreadyCountedThisSession = _sessionReviewed.has(questionId);
+			let newReviewCount: number;
+			if (status === "review") {
+				if (!alreadyCountedThisSession) {
+					newReviewCount = (existing?.reviewCount ?? 0) + 1;
+					_sessionReviewed.add(questionId);
+				} else {
+					newReviewCount = existing?.reviewCount ?? 1;
+				}
+			} else {
+				// mastered / unlearned — never increment
+				newReviewCount = existing?.reviewCount ?? 0;
+			}
+
 			const record: StudyRecord = {
 				questionId,
 				status,
 				lastUpdated: Date.now(),
-				reviewCount: existing
-					? status === "review"
-						? existing.reviewCount + 1
-						: existing.reviewCount
-					: status === "review"
-						? 1
-						: 0,
+				reviewCount: newReviewCount,
 			};
 			// Optimistic update first
 			const action: Action = { type: "SET_RECORD", record };
@@ -190,6 +301,22 @@ export function useStudyStore() {
 		saveTheme(theme);
 		applyThemeToDom(theme);
 		const action: Action = { type: "SET_THEME", theme };
+		broadcast(action);
+	}, []);
+
+	const setStudyMode = useCallback((mode: StudyMode) => {
+		saveStudyMode(mode);
+		const action: Action = { type: "SET_STUDY_MODE", studyMode: mode };
+		broadcast(action);
+	}, []);
+
+	const incrementStreak = useCallback(() => {
+		const action: Action = { type: "INCREMENT_STREAK" };
+		broadcast(action);
+	}, []);
+
+	const resetStreak = useCallback(() => {
+		const action: Action = { type: "RESET_STREAK" };
 		broadcast(action);
 	}, []);
 
@@ -252,6 +379,8 @@ export function useStudyStore() {
 	return {
 		records: state.records,
 		theme: state.theme,
+		studyMode: state.studyMode,
+		streak: state.streak,
 		initialized: state.initialized,
 
 		// Actions
@@ -260,6 +389,9 @@ export function useStudyStore() {
 		resetAll,
 		setTheme,
 		toggleTheme,
+		setStudyMode,
+		incrementStreak,
+		resetStreak,
 
 		// Queries
 		getStatus,

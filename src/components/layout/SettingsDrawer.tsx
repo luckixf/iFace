@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	type AIConfig,
 	DEFAULT_AI_CONFIG,
+	DEFAULT_SYSTEM_PROMPT,
 	PRESET_BASE_URLS,
 	PRESET_MODELS,
 	useAIStore,
@@ -14,7 +15,7 @@ import {
 	bulkPutStudyRecords,
 	resetDatabase,
 } from "@/lib/db";
-import { useStudyStore } from "@/store/useStudyStore";
+import { useStudyStore, type StudyMode } from "@/store/useStudyStore";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
@@ -317,11 +318,11 @@ interface SettingsDrawerProps {
 	onClose: () => void;
 }
 
-type Tab = "ai" | "data";
+type Tab = "ai" | "study" | "data";
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 	const { config, updateConfig, resetConfig, clearAllSessions } = useAIStore();
-	const { resetAll } = useStudyStore();
+	const { resetAll, studyMode, setStudyMode, streak, resetStreak } = useStudyStore();
 
 	const [tab, setTab] = useState<Tab>("ai");
 	const [localConfig, setLocalConfig] = useState<AIConfig>({ ...config });
@@ -544,6 +545,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 					bottom: 0,
 					zIndex: 201,
 					width: "min(440px, 100vw)",
+					height: "100%",
 					background: "var(--surface)",
 					borderLeft: "1px solid var(--border-subtle)",
 					boxShadow: "var(--shadow-xl)",
@@ -578,8 +580,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 							}}
 						>
 							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+								<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
 								<circle cx="12" cy="12" r="3" />
-								<path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M19.07 19.07l-1.41-1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2" />
 							</svg>
 						</div>
 						<span style={{ fontSize: 15, fontWeight: 600, color: "var(--text)" }}>
@@ -624,10 +626,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 						flexShrink: 0,
 					}}
 				>
-					{(["ai", "data"] as Tab[]).map((t) => {
-						const labels: Record<Tab, string> = { ai: "AI 助手", data: "数据管理" };
+					{(["ai", "study", "data"] as Tab[]).map((t) => {
+						const labels: Record<Tab, string> = { ai: "AI 助手", study: "刷题偏好", data: "数据管理" };
 						const icons: Record<Tab, React.ReactNode> = {
 							ai: <IconAI />,
+							study: (
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+									<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+									<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+								</svg>
+							),
 							data: <IconData />,
 						};
 						const active = tab === t;
@@ -661,6 +669,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 				<div
 					style={{
 						flex: 1,
+						minHeight: 0,
 						overflowY: "auto",
 						padding: "20px",
 						display: "flex",
@@ -668,6 +677,205 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 						gap: 20,
 					}}
 				>
+					{/* ── Study Preferences Tab ── */}
+					{tab === "study" && (
+						<>
+							<SectionHeader
+								icon={
+									<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+										<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+										<path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+									</svg>
+								}
+								title="刷题偏好"
+							/>
+
+							{/* Study Mode Selector */}
+							<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+								<label style={{ fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>
+									答题模式
+								</label>
+								{(
+									[
+										{
+											value: "answer-first" as StudyMode,
+											label: "先答后看",
+											emoji: "✍️",
+											description: "先在作答区写下你的理解，再展开参考答案——最有助于记忆",
+										},
+										{
+											value: "answer-alongside" as StudyMode,
+											label: "边看边记",
+											emoji: "📖",
+											description: "查看答案的同时写笔记，作答区显示在答案卡片内",
+										},
+										{
+											value: "memory-only" as StudyMode,
+											label: "纯记忆",
+											emoji: "🧠",
+											description: "不显示作答区，直接翻答案，快速过一遍知识点",
+										},
+									] as { value: StudyMode; label: string; emoji: string; description: string }[]
+								).map((opt) => {
+									const active = studyMode === opt.value;
+									return (
+										<button
+											key={opt.value}
+											onClick={() => {
+												setStudyMode(opt.value);
+												showToast(`已切换至「${opt.label}」模式`);
+											}}
+											style={{
+												display: "flex",
+												alignItems: "flex-start",
+												gap: 12,
+												padding: "12px 14px",
+												borderRadius: 10,
+												border: `1px solid ${active ? "rgba(var(--primary-rgb),0.4)" : "var(--border-subtle)"}`,
+												background: active ? "var(--primary-light)" : "var(--surface-2)",
+												cursor: "pointer",
+												textAlign: "left",
+												transition: "all 0.15s",
+											}}
+											onMouseEnter={(e) => {
+												if (!active) {
+													(e.currentTarget as HTMLElement).style.borderColor = "rgba(var(--primary-rgb),0.3)";
+													(e.currentTarget as HTMLElement).style.background = "var(--surface-3)";
+												}
+											}}
+											onMouseLeave={(e) => {
+												if (!active) {
+													(e.currentTarget as HTMLElement).style.borderColor = "var(--border-subtle)";
+													(e.currentTarget as HTMLElement).style.background = "var(--surface-2)";
+												}
+											}}
+										>
+											<span style={{ fontSize: 22, lineHeight: 1.2, flexShrink: 0 }}>{opt.emoji}</span>
+											<div style={{ flex: 1, minWidth: 0 }}>
+												<div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+													<span style={{ fontSize: 13, fontWeight: 600, color: active ? "var(--primary)" : "var(--text)" }}>
+														{opt.label}
+													</span>
+													{active && (
+														<span
+															style={{
+																fontSize: 10,
+																fontWeight: 600,
+																padding: "1px 6px",
+																borderRadius: 99,
+																background: "var(--primary)",
+																color: "white",
+															}}
+														>
+															当前
+														</span>
+													)}
+												</div>
+												<p style={{ fontSize: 12, color: "var(--text-3)", lineHeight: 1.5, margin: 0 }}>
+													{opt.description}
+												</p>
+											</div>
+										</button>
+									);
+								})}
+							</div>
+
+							{/* Streak Stats */}
+							<div
+								style={{
+									padding: "14px 16px",
+									borderRadius: 10,
+									background: "var(--surface-2)",
+									border: "1px solid var(--border-subtle)",
+								}}
+							>
+								<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+									<p style={{ fontSize: 13, fontWeight: 600, color: "var(--text)" }}>🔥 连刷记录</p>
+									<button
+										onClick={() => {
+											resetStreak();
+											showToast("连刷记录已重置");
+										}}
+										style={{
+											fontSize: 11,
+											color: "var(--text-3)",
+											background: "none",
+											border: "none",
+											cursor: "pointer",
+											padding: "2px 6px",
+											borderRadius: 4,
+											transition: "all 0.15s",
+										}}
+										onMouseEnter={(e) => {
+											(e.currentTarget as HTMLElement).style.color = "var(--danger)";
+											(e.currentTarget as HTMLElement).style.background = "var(--danger-light)";
+										}}
+										onMouseLeave={(e) => {
+											(e.currentTarget as HTMLElement).style.color = "var(--text-3)";
+											(e.currentTarget as HTMLElement).style.background = "none";
+										}}
+									>
+										重置
+									</button>
+								</div>
+								<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+									{[
+										{ label: "今日作答", value: streak.todayCount, suffix: "题", color: "var(--primary)" },
+										{ label: "当前连击", value: streak.currentStreak, suffix: "连", color: "#f59e0b" },
+										{ label: "历史最高", value: streak.bestStreak, suffix: "连", color: "var(--success)" },
+									].map((s) => (
+										<div
+											key={s.label}
+											style={{
+												padding: "10px 12px",
+												borderRadius: 8,
+												background: "var(--surface)",
+												border: "1px solid var(--border-subtle)",
+												textAlign: "center",
+											}}
+										>
+											<p style={{ fontSize: 18, fontWeight: 700, color: s.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>
+												{s.value}
+												<span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-3)", marginLeft: 2 }}>{s.suffix}</span>
+											</p>
+											<p style={{ fontSize: 11, color: "var(--text-3)", marginTop: 3 }}>{s.label}</p>
+										</div>
+									))}
+								</div>
+							</div>
+
+							{/* Milestone hints */}
+							<div
+								style={{
+									padding: "12px 14px",
+									borderRadius: 10,
+									background: "var(--surface-2)",
+									border: "1px solid var(--border-subtle)",
+									fontSize: 12,
+									color: "var(--text-2)",
+									lineHeight: 1.7,
+								}}
+							>
+								<p style={{ fontWeight: 600, marginBottom: 6, color: "var(--text)" }}>🎯 成就里程碑</p>
+								{[
+									{ n: 3,  emoji: "🔥", text: "3 连击 — 良好开始！" },
+									{ n: 5,  emoji: "⚡", text: "5 连击 — 状态上来了！" },
+									{ n: 10, emoji: "🚀", text: "10 连击 — 专注模式！" },
+									{ n: 20, emoji: "👑", text: "20 连击 — 王者风范！" },
+									{ n: 50, emoji: "🏆", text: "50 连击 — 传说级别！" },
+								].map((m) => (
+									<div key={m.n} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+										<span>{m.emoji}</span>
+										<span style={{ color: streak.bestStreak >= m.n ? "var(--success)" : "var(--text-3)" }}>
+											{m.text}
+											{streak.bestStreak >= m.n && <span style={{ marginLeft: 4, fontSize: 11 }}>✓ 已达成</span>}
+										</span>
+									</div>
+								))}
+							</div>
+						</>
+					)}
+
 					{/* ── AI Tab ── */}
 					{tab === "ai" && (
 						<>
@@ -809,6 +1017,62 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 									</Field>
 								</div>
 							</details>
+
+							{/* System Prompt */}
+							<Field
+								label="System Prompt"
+								hint="控制 AI 的回答风格、格式和行为，修改后点击保存生效"
+							>
+								<div style={{ position: "relative" }}>
+									<textarea
+										value={localConfig.systemPrompt ?? DEFAULT_SYSTEM_PROMPT}
+										onChange={(e) => patch({ systemPrompt: e.target.value })}
+										rows={8}
+										className="input-base"
+										style={{
+											resize: "vertical",
+											fontFamily: "var(--font-mono)",
+											fontSize: 11,
+											lineHeight: 1.6,
+											minHeight: 140,
+											maxHeight: 320,
+											paddingBottom: 24,
+										}}
+										placeholder="输入自定义 System Prompt..."
+									/>
+									<div
+										style={{
+											position: "absolute",
+											bottom: 8,
+											right: 8,
+											display: "flex",
+											alignItems: "center",
+											gap: 8,
+										}}
+									>
+										<span style={{ fontSize: 10, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
+											{(localConfig.systemPrompt ?? DEFAULT_SYSTEM_PROMPT).length} 字
+										</span>
+										<button
+											type="button"
+											onClick={() => patch({ systemPrompt: DEFAULT_SYSTEM_PROMPT })}
+											style={{
+												fontSize: 10,
+												color: "var(--primary)",
+												background: "var(--primary-light)",
+												border: "none",
+												borderRadius: 4,
+												padding: "2px 7px",
+												cursor: "pointer",
+												whiteSpace: "nowrap",
+												fontWeight: 500,
+											}}
+										>
+											恢复默认
+										</button>
+									</div>
+								</div>
+							</Field>
 
 							{/* Usage tip */}
 							<div
@@ -1296,8 +1560,8 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 							<IconGitHub />
 							dogxii/iFace
 						</a>
-						<span style={{ fontSize: 11, color: "var(--text-3)" }}>
-							Made with ❤️
+						<span style={{ fontSize: 11, color: "var(--text-3)", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono)" }}>
+							v{__APP_VERSION__}
 						</span>
 					</div>
 				</div>

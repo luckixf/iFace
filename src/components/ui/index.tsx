@@ -11,28 +11,59 @@ export function Badge({
 	variant = "default",
 	size = "md",
 	className = "",
+	style: styleProp,
 	children,
 	...props
 }: BadgeProps) {
-	const variants = {
-		default:
-			"bg-[var(--surface-3)] text-[var(--text-2)] border border-[var(--border)]",
-		primary:
-			"bg-[var(--primary-light)] text-[var(--primary)] border border-[var(--primary)]/20",
-		success: "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
-		warning: "bg-amber-500/10 text-amber-500 border border-amber-500/20",
-		danger: "bg-rose-500/10 text-rose-500 border border-rose-500/20",
-		ghost:
-			"bg-transparent text-[var(--text-3)] border border-[var(--border-subtle)]",
-	};
-	const sizes = {
-		sm: "text-[10px] px-1.5 py-0.5 rounded-[4px]",
-		md: "text-xs px-2 py-0.5 rounded-md",
-	};
+	const variantStyle: React.CSSProperties = (() => {
+		switch (variant) {
+			case "primary":
+				return {
+					background: "var(--primary-light)",
+					color: "var(--primary)",
+					border: "1px solid rgba(var(--primary-rgb), 0.2)",
+				};
+			case "success":
+				return {
+					background: "rgba(16,185,129,0.1)",
+					color: "#10b981",
+					border: "1px solid rgba(16,185,129,0.2)",
+				};
+			case "warning":
+				return {
+					background: "rgba(245,158,11,0.1)",
+					color: "#f59e0b",
+					border: "1px solid rgba(245,158,11,0.2)",
+				};
+			case "danger":
+				return {
+					background: "rgba(239,68,68,0.1)",
+					color: "#ef4444",
+					border: "1px solid rgba(239,68,68,0.2)",
+				};
+			case "ghost":
+				return {
+					background: "transparent",
+					color: "var(--text-3)",
+					border: "1px solid var(--border-subtle)",
+				};
+			default: // "default"
+				return {
+					background: "var(--surface-3)",
+					color: "var(--text-2)",
+					border: "1px solid var(--border)",
+				};
+		}
+	})();
+
+	const sizeStyle: React.CSSProperties = size === "sm"
+		? { fontSize: 10, padding: "2px 6px", borderRadius: 4 }
+		: { fontSize: 12, padding: "2px 8px", borderRadius: 6 };
 
 	return (
 		<span
-			className={`inline-flex items-center gap-1 font-medium leading-none whitespace-nowrap ${variants[variant]} ${sizes[size]} ${className}`}
+			className={`inline-flex items-center gap-1 font-medium leading-none whitespace-nowrap ${className}`}
+			style={{ ...variantStyle, ...sizeStyle, ...styleProp }}
 			{...props}
 		>
 			{children}
@@ -63,32 +94,80 @@ export function Button({
 	children,
 	...props
 }: ButtonProps) {
-	const base =
-		"inline-flex items-center justify-center gap-2 font-medium rounded-xl border transition-all duration-150 cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none";
-
-	const variants = {
-		primary:
-			"bg-[var(--primary)] border-[var(--primary)] text-white hover:bg-[var(--primary-hover)] shadow-md",
-		secondary:
-			"bg-[var(--surface)] border-[var(--border)] text-[var(--text)] hover:bg-[var(--surface-2)]",
-		ghost:
-			"bg-transparent border-transparent text-[var(--text-2)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]",
-		danger:
-			"bg-rose-500/10 border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white",
-		success:
-			"bg-emerald-500/10 border-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white",
-	};
-
-	const sizes = {
+	const sizeClass = {
 		sm: "text-xs px-3 py-1.5 h-7",
 		md: "text-sm px-4 py-2 h-9",
 		lg: "text-sm px-5 py-2.5 h-11",
-	};
+	}[size];
+
+	// Use inline styles for CSS-variable-based colors so Tailwind scan is not needed
+	const variantStyle: React.CSSProperties = (() => {
+		switch (variant) {
+			case "primary":
+				return {
+					background: "var(--primary)",
+					borderColor: "var(--primary)",
+					color: "white",
+					boxShadow: "var(--shadow-md)",
+				};
+			case "secondary":
+				return {
+					background: "var(--surface)",
+					borderColor: "var(--border)",
+					color: "var(--text)",
+				};
+			case "ghost":
+				return {
+					background: "transparent",
+					borderColor: "transparent",
+					color: "var(--text-2)",
+				};
+			case "danger":
+				return {
+					background: "rgba(239,68,68,0.1)",
+					borderColor: "rgba(239,68,68,0.2)",
+					color: "#ef4444",
+				};
+			case "success":
+				return {
+					background: "rgba(16,185,129,0.1)",
+					borderColor: "rgba(16,185,129,0.2)",
+					color: "#10b981",
+				};
+		}
+	})();
 
 	return (
 		<button
 			disabled={disabled || loading}
-			className={`${base} ${variants[variant]} ${sizes[size]} ${fullWidth ? "w-full" : ""} ${className}`}
+			className={`inline-flex items-center justify-center gap-2 font-medium rounded-xl border transition-all duration-150 cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none btn-${variant} ${sizeClass} ${fullWidth ? "w-full" : ""} ${className}`}
+			style={variantStyle}
+			onMouseEnter={(e) => {
+				const el = e.currentTarget;
+				if (variant === "primary") {
+					el.style.background = "var(--primary-hover)";
+					el.style.borderColor = "var(--primary-hover)";
+				} else if (variant === "secondary") {
+					el.style.background = "var(--surface-2)";
+				} else if (variant === "ghost") {
+					el.style.background = "var(--surface-2)";
+					el.style.color = "var(--text)";
+				} else if (variant === "danger") {
+					el.style.background = "#ef4444";
+					el.style.borderColor = "#ef4444";
+					el.style.color = "white";
+				} else if (variant === "success") {
+					el.style.background = "#10b981";
+					el.style.borderColor = "#10b981";
+					el.style.color = "white";
+				}
+				props.onMouseEnter?.(e);
+			}}
+			onMouseLeave={(e) => {
+				const el = e.currentTarget;
+				Object.assign(el.style, variantStyle);
+				props.onMouseLeave?.(e);
+			}}
 			{...props}
 		>
 			{loading ? (

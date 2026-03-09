@@ -4,8 +4,8 @@ import { Button, EmptyState, Skeleton } from "@/components/ui";
 import { useQuestions } from "@/hooks/useQuestions";
 import { useStudyStore } from "@/store/useStudyStore";
 import {
-	DIFFICULTY_COLORS,
 	DIFFICULTY_LABELS,
+	DIFFICULTY_STYLES,
 	type Difficulty,
 	MODULE_LIST,
 	type Module,
@@ -142,14 +142,10 @@ function DifficultyChip({
 	onClick: () => void;
 }) {
 	const isAll = difficulty === "all";
+	const dStyle = !isAll ? DIFFICULTY_STYLES[difficulty as Difficulty] : null;
 	return (
 		<button
 			onClick={onClick}
-			className={
-				selected && !isAll
-					? `text-sm font-medium border cursor-pointer transition-all duration-150 ${DIFFICULTY_COLORS[difficulty as Difficulty]}`
-					: undefined
-			}
 			style={{
 				display: "inline-flex",
 				alignItems: "center",
@@ -160,15 +156,25 @@ function DifficultyChip({
 				fontWeight: 500,
 				cursor: "pointer",
 				transition: "all 0.15s",
-				border: selected && !isAll ? undefined : "1px solid var(--border)",
+				border: "1px solid",
+				borderColor:
+					selected && isAll
+						? "var(--primary)"
+						: selected && dStyle
+							? dStyle.borderColor
+							: "var(--border)",
 				background:
 					selected && isAll
 						? "var(--primary)"
-						: selected
-							? undefined
+						: selected && dStyle
+							? dStyle.background
 							: "var(--surface)",
 				color:
-					selected && isAll ? "white" : selected ? undefined : "var(--text-2)",
+					selected && isAll
+						? "white"
+						: selected && dStyle
+							? dStyle.color
+							: "var(--text-2)",
 			}}
 		>
 			{isAll ? "全部" : DIFFICULTY_LABELS[difficulty as Difficulty]}
@@ -699,11 +705,11 @@ export default function Practice() {
 				</div>
 			) : (
 				<div
-					style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 20 }}
-					className="practice-grid"
-				>
+						style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 20, minWidth: 0 }}
+						className="practice-grid"
+					>
 					{/* ── Left: Config ── */}
-					<div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+					<div style={{ display: "flex", flexDirection: "column", gap: 28, minWidth: 0, overflow: "hidden" }}>
 						{/* Quick Presets */}
 						<div className="animate-fade-in">
 							<p
@@ -909,11 +915,12 @@ export default function Practice() {
 
 					{/* ── Right: Session Preview ── */}
 					<div
-						className="animate-fade-in stagger-2"
+						className="animate-fade-in stagger-2 practice-session-preview"
 						style={{
 							position: "sticky",
 							top: "calc(var(--navbar-h) + 20px)",
 							alignSelf: "flex-start",
+							minWidth: 0,
 						}}
 					>
 						<SessionPreview
@@ -1010,16 +1017,48 @@ export default function Practice() {
 			)}
 
 			<style>{`
-				@media (max-width: 900px) {
-					.practice-grid { grid-template-columns: 1fr !important; }
-					.modules-grid { grid-template-columns: repeat(2, 1fr) !important; }
-					.presets-grid { grid-template-columns: repeat(2, 1fr) !important; }
-				}
-				@media (max-width: 640px) {
-					.modules-grid { grid-template-columns: repeat(2, 1fr) !important; }
-					.presets-grid { grid-template-columns: repeat(2, 1fr) !important; }
-				}
-			`}</style>
+					/* ── Practice page responsive ── */
+					@media (max-width: 900px) {
+						.practice-grid {
+							grid-template-columns: 1fr !important;
+						}
+						.modules-grid {
+							grid-template-columns: repeat(3, 1fr) !important;
+						}
+						.presets-grid {
+							grid-template-columns: repeat(2, 1fr) !important;
+						}
+						.practice-session-preview {
+							position: static !important;
+							align-self: auto !important;
+						}
+					}
+					@media (max-width: 640px) {
+						.modules-grid {
+							grid-template-columns: repeat(2, 1fr) !important;
+						}
+						.presets-grid {
+							grid-template-columns: repeat(2, 1fr) !important;
+						}
+						.practice-session-preview {
+							position: static !important;
+						}
+						/* Prevent page-container horizontal overflow */
+						.page-container {
+							padding-left: 12px !important;
+							padding-right: 12px !important;
+							overflow-x: hidden;
+						}
+					}
+					@media (max-width: 480px) {
+						.modules-grid {
+							grid-template-columns: repeat(2, 1fr) !important;
+						}
+						.presets-grid {
+							grid-template-columns: repeat(2, 1fr) !important;
+						}
+					}
+				`}</style>
 		</div>
 	);
 }
