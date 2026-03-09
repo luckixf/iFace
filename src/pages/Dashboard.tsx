@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
+
 import { Link } from "react-router-dom";
 import { Button, EmptyState, SegmentedRing, Skeleton } from "@/components/ui";
 import { useQuestions } from "@/hooks/useQuestions";
@@ -15,7 +16,7 @@ import {
 
 const STREAK_DISMISS_KEY = "iface_streak_banner_dismissed_date";
 
-function StreakBanner({ streak }: { streak: StreakData }) {
+function StreakBanner({ streak, dailyGoal }: { streak: StreakData; dailyGoal: number }) {
 	const [dismissed, setDismissed] = useState(() => {
 		try {
 			const stored = localStorage.getItem(STREAK_DISMISS_KEY);
@@ -121,22 +122,22 @@ function StreakBanner({ streak }: { streak: StreakData }) {
 					}}
 				>
 					<span style={{ fontSize: 11, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
-						目标 10 题
-					</span>
-					<div style={{ width: 80, height: 4, background: "var(--border)", borderRadius: 99, overflow: "hidden" }}>
-						<div
-							style={{
-								height: "100%",
-								background: hit.color,
-								borderRadius: 99,
-								width: `${Math.min(100, (streak.todayCount / 10) * 100)}%`,
-								transition: "width 0.6s var(--ease-out)",
-							}}
-						/>
-					</div>
-					{streak.todayCount >= 10 && (
-						<span style={{ fontSize: 10, color: hit.color, fontWeight: 600 }}>今日目标达成 🎉</span>
-					)}
+							目标 {dailyGoal} 题
+						</span>
+						<div style={{ width: 80, height: 4, background: "var(--border)", borderRadius: 99, overflow: "hidden" }}>
+							<div
+								style={{
+									height: "100%",
+									background: hit.color,
+									borderRadius: 99,
+									width: `${Math.min(100, (streak.todayCount / dailyGoal) * 100)}%`,
+									transition: "width 0.6s var(--ease-out)",
+								}}
+							/>
+						</div>
+						{streak.todayCount >= dailyGoal && (
+							<span style={{ fontSize: 10, color: hit.color, fontWeight: 600 }}>今日目标达成 🎉</span>
+						)}
 				</div>
 			)}
 
@@ -695,7 +696,7 @@ const IconClock = () => (
 export default function Dashboard() {
 	const { questions, allQuestions, loading, initializing, getDailyIds } =
 		useQuestions();
-	const { records, getStatusCounts, getEstimatedDays, streak } = useStudyStore();
+	const { records, statusCounts, getEstimatedDays, streak, dailyGoal } = useStudyStore();
 
 	const [dailyIds, setDailyIds] = useState<string[]>([]);
 	const [dailyLoading, setDailyLoading] = useState(true);
@@ -721,25 +722,24 @@ export default function Dashboard() {
 					{ status: v.status, lastUpdated: v.lastUpdated },
 				]),
 			),
-			10,
+			dailyGoal,
 		)
 			.then(setDailyIds)
 			.finally(() => setDailyLoading(false));
-	}, [allQuestions.length, records, getDailyIds]);
+	}, [allQuestions.length, records, getDailyIds, dailyGoal]);
 
 	const counts = useMemo(() => {
-		const base = getStatusCounts();
-		const tracked = base.mastered + base.review;
+		const tracked = statusCounts.mastered + statusCounts.review;
 		const unlearned = Math.max(0, allQuestions.length - tracked);
-		return { ...base, unlearned };
-	}, [getStatusCounts, allQuestions.length]);
+		return { ...statusCounts, unlearned };
+	}, [statusCounts, allQuestions.length]);
 
 	const totalQuestions = allQuestions.length;
 	const masteredPercent =
 		totalQuestions > 0
 			? Math.round((counts.mastered / totalQuestions) * 100)
 			: 0;
-	const estimatedDays = getEstimatedDays(totalQuestions);
+	const estimatedDays = getEstimatedDays(totalQuestions, dailyGoal);
 
 	const moduleStats = useMemo(() => {
 		return MODULE_LIST.map((mod) => {
@@ -761,7 +761,7 @@ export default function Dashboard() {
 	return (
 		<div className="page-container">
 			{/* ── Streak Banner ── */}
-			{!hasNoQuestions && <StreakBanner streak={streak} />}
+			{!hasNoQuestions && <StreakBanner streak={streak} dailyGoal={dailyGoal} />}
 
 			{/* ── Greeting ── */}
 			<div className="animate-fade-in" style={{ marginBottom: 28 }}>
@@ -832,7 +832,7 @@ export default function Dashboard() {
 						<StatCard
 							label="预计完成"
 							value={estimatedDays === 0 ? "已完成" : `${estimatedDays} 天`}
-							sub={estimatedDays > 0 ? "按每天 10 题" : undefined}
+							sub={estimatedDays > 0 ? `每天 ${dailyGoal} 题` : undefined}
 							accentColor="var(--surface-3)"
 							delay={0.15}
 							icon={<IconClock />}

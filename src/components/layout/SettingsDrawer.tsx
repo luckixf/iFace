@@ -8,6 +8,11 @@ import {
 	useAIStore,
 } from "@/store/useAIStore";
 import {
+	DAILY_GOAL_DEFAULT,
+	DAILY_GOAL_MAX,
+	DAILY_GOAL_MIN,
+} from "@/store/useStudyStore";
+import {
 	exportAllData,
 	getAllQuestions,
 	getAllStudyRecords,
@@ -322,7 +327,7 @@ type Tab = "ai" | "study" | "data";
 
 export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 	const { config, updateConfig, resetConfig, clearAllSessions } = useAIStore();
-	const { resetAll, studyMode, setStudyMode, streak, resetStreak } = useStudyStore();
+	const { resetAll, studyMode, setStudyMode, streak, resetStreak, dailyGoal, setDailyGoal } = useStudyStore();
 
 	const [tab, setTab] = useState<Tab>("ai");
 	const [localConfig, setLocalConfig] = useState<AIConfig>({ ...config });
@@ -689,6 +694,51 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 								}
 								title="刷题偏好"
 							/>
+
+							{/* Daily Goal */}
+							<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+								<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+									<label style={{ fontSize: 12, fontWeight: 500, color: "var(--text-2)" }}>
+										每日目标题数
+									</label>
+									<span style={{ fontSize: 12, fontWeight: 600, color: "var(--primary)", fontVariantNumeric: "tabular-nums" }}>
+										{dailyGoal} 题 / 天
+									</span>
+								</div>
+								<input
+									type="range"
+									min={DAILY_GOAL_MIN}
+									max={DAILY_GOAL_MAX}
+									step={5}
+									value={dailyGoal}
+									onChange={(e) => setDailyGoal(parseInt(e.target.value, 10))}
+									style={{ width: "100%", accentColor: "var(--primary)" }}
+								/>
+								<div style={{ display: "flex", justifyContent: "space-between" }}>
+									<span style={{ fontSize: 11, color: "var(--text-3)" }}>{DAILY_GOAL_MIN} 题（轻松）</span>
+									<span style={{ fontSize: 11, color: "var(--text-3)" }}>{DAILY_GOAL_DEFAULT} 题（推荐）</span>
+									<span style={{ fontSize: 11, color: "var(--text-3)" }}>{DAILY_GOAL_MAX} 题（高强度）</span>
+								</div>
+								{dailyGoal !== DAILY_GOAL_DEFAULT && (
+									<button
+										type="button"
+										onClick={() => setDailyGoal(DAILY_GOAL_DEFAULT)}
+										style={{
+											alignSelf: "flex-start",
+											fontSize: 11,
+											color: "var(--primary)",
+											background: "var(--primary-light)",
+											border: "none",
+											borderRadius: 4,
+											padding: "2px 8px",
+											cursor: "pointer",
+											fontWeight: 500,
+										}}
+									>
+										恢复默认（{DAILY_GOAL_DEFAULT} 题）
+									</button>
+								)}
+							</div>
 
 							{/* Study Mode Selector */}
 							<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

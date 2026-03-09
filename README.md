@@ -4,7 +4,7 @@
 
 **前端面试题库 · 智能刷题工具**
 
-[立即体验](https://i-face.vercel.app) · [报告问题](https://github.com/dogxii/iFace/issues) · [功能建议](https://github.com/dogxii/iFace/issues)
+[立即体验](https://face.dogxi.me) · [报告问题](https://github.com/dogxii/iFace/issues) · [功能建议](https://github.com/dogxii/iFace/issues)
 
 ![Version](https://img.shields.io/badge/version-0.8.0-6366f1?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)
@@ -19,7 +19,8 @@
 
 > 📸 截图待补充
 
-<!-- 建议截图尺寸：1280×800，放入 docs/screenshots/ 目录 -->
+建议截图尺寸：1280×800，放入 docs/screenshots/ 目录 -->
+
 <!--
 <div align="center">
   <img src="docs/screenshots/dashboard.png" alt="概览页" width="49%" />
@@ -28,7 +29,7 @@
   <img src="docs/screenshots/question-detail.png" alt="题目详情 + AI 助手" width="49%" />
   <img src="docs/screenshots/settings.png" alt="设置面板" width="49%" />
 </div>
--->
+
 
 ---
 
@@ -214,4 +215,4 @@ docs: 文档更新描述
 
 ## License
 
-[MIT](LICENSE) © 2025 dogxii
+[MIT](LICENSE) © 2026 Dogxi

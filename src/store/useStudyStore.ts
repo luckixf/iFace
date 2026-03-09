@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 
 // ─── Streak / Gamification ────────────────────────────────────────────────────
 
@@ -10,6 +10,31 @@ export interface StreakData {
 }
 
 const STREAK_KEY = "iface_streak";
+
+// ─── Daily Goal ───────────────────────────────────────────────────────────────
+
+export const DAILY_GOAL_MIN = 5;
+export const DAILY_GOAL_MAX = 50;
+export const DAILY_GOAL_DEFAULT = 10;
+
+const DAILY_GOAL_KEY = "iface_daily_goal";
+
+function loadDailyGoal(): number {
+	try {
+		const v = localStorage.getItem(DAILY_GOAL_KEY);
+		if (v) {
+			const n = parseInt(v, 10);
+			if (!Number.isNaN(n) && n >= DAILY_GOAL_MIN && n <= DAILY_GOAL_MAX) return n;
+		}
+	} catch {}
+	return DAILY_GOAL_DEFAULT;
+}
+
+function saveDailyGoal(n: number): void {
+	try {
+		localStorage.setItem(DAILY_GOAL_KEY, String(n));
+	} catch {}
+}
 
 function todayStr(): string {
 	return new Date().toISOString().slice(0, 10);
@@ -104,16 +129,18 @@ interface StoreState {
 	theme: "light" | "dark";
 	studyMode: StudyMode;
 	streak: StreakData;
+	dailyGoal: number;
 	initialized: boolean;
 }
 
 type Action =
-	| { type: "INIT"; records: StudyRecordMap; theme: "light" | "dark"; studyMode: StudyMode; streak: StreakData }
+	| { type: "INIT"; records: StudyRecordMap; theme: "light" | "dark"; studyMode: StudyMode; streak: StreakData; dailyGoal: number }
 	| { type: "SET_RECORD"; record: StudyRecord }
 	| { type: "DELETE_RECORD"; questionId: string }
 	| { type: "RESET_RECORDS" }
 	| { type: "SET_THEME"; theme: "light" | "dark" }
 	| { type: "SET_STUDY_MODE"; studyMode: StudyMode }
+	| { type: "SET_DAILY_GOAL"; dailyGoal: number }
 	| { type: "INCREMENT_STREAK" }
 	| { type: "RESET_STREAK" };
 
@@ -126,6 +153,7 @@ function reducer(state: StoreState, action: Action): StoreState {
 				theme: action.theme,
 				studyMode: action.studyMode,
 				streak: action.streak,
+				dailyGoal: action.dailyGoal,
 				initialized: true,
 			};
 		case "SET_RECORD":
@@ -164,6 +192,9 @@ function reducer(state: StoreState, action: Action): StoreState {
 			saveStreak(reset);
 			return { ...state, streak: reset };
 		}
+		case "SET_DAILY_GOAL":
+			saveDailyGoal(action.dailyGoal);
+			return { ...state, dailyGoal: action.dailyGoal };
 		default:
 			return state;
 	}
@@ -208,6 +239,7 @@ export function useStudyStore() {
 		theme: loadTheme(),
 		studyMode: loadStudyMode(),
 		streak: loadStreak(),
+		dailyGoal: loadDailyGoal(),
 		initialized: false,
 	});
 
@@ -222,10 +254,11 @@ export function useStudyStore() {
 
 		const studyMode = loadStudyMode();
 		const streak = loadStreak();
+		const dailyGoal = loadDailyGoal();
 		getAllStudyRecords().then((records) => {
 			const map: StudyRecordMap = {};
 			for (const r of records) map[r.questionId] = r;
-			dispatch({ type: "INIT", records: map, theme, studyMode, streak });
+			dispatch({ type: "INIT", records: map, theme, studyMode, streak, dailyGoal });
 		});
 	}, []);
 
@@ -320,6 +353,12 @@ export function useStudyStore() {
 		broadcast(action);
 	}, []);
 
+	const setDailyGoal = useCallback((n: number) => {
+		const clamped = Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, Math.round(n)));
+		const action: Action = { type: "SET_DAILY_GOAL", dailyGoal: clamped };
+		broadcast(action);
+	}, []);
+
 	const toggleTheme = useCallback(() => {
 		const next = stateRef.current.theme === "light" ? "dark" : "light";
 		saveTheme(next);
@@ -342,19 +381,32 @@ export function useStudyStore() {
 		[],
 	);
 
-	const getStatusCounts = useCallback((questionIds?: string[]) => {
+	// ── Derived counts computed directly from reactive state (not stateRef) ──
+	// These are plain values, not callbacks, so components can use them directly
+	// as useMemo / useEffect dependencies and re-render when records change.
+	const statusCounts = useMemo(() => {
 		const counts = { unlearned: 0, mastered: 0, review: 0 };
-		const ids = questionIds ?? Object.keys(stateRef.current.records);
+		for (const r of Object.values(state.records)) {
+			counts[r.status]++;
+		}
+		return counts;
+	}, [state.records]);
 
-		if (questionIds) {
-			for (const id of ids) {
-				const status = stateRef.current.records[id]?.status ?? "unlearned";
-				counts[status]++;
-			}
-		} else {
+	// Keep the callback form for compatibility (e.g. QuestionDetail, WeakPoints)
+	const getStatusCounts = useCallback((questionIds?: string[]) => {
+		if (!questionIds) {
+			// Re-derive from current state so callers that call this inside a
+			// useEffect/useMemo also get a fresh value.
+			const counts = { unlearned: 0, mastered: 0, review: 0 };
 			for (const r of Object.values(stateRef.current.records)) {
 				counts[r.status]++;
 			}
+			return counts;
+		}
+		const counts = { unlearned: 0, mastered: 0, review: 0 };
+		for (const id of questionIds) {
+			const status = stateRef.current.records[id]?.status ?? "unlearned";
+			counts[status]++;
 		}
 		return counts;
 	}, []);
@@ -366,7 +418,7 @@ export function useStudyStore() {
 	}, []);
 
 	const getEstimatedDays = useCallback(
-		(totalQuestions: number, dailyCount = 10): number => {
+		(totalQuestions: number, dailyCount = DAILY_GOAL_DEFAULT): number => {
 			const mastered = Object.values(stateRef.current.records).filter(
 				(r) => r.status === "mastered",
 			).length;
@@ -381,7 +433,11 @@ export function useStudyStore() {
 		theme: state.theme,
 		studyMode: state.studyMode,
 		streak: state.streak,
+		dailyGoal: state.dailyGoal,
 		initialized: state.initialized,
+
+		// Derived reactive values (safe as useMemo/useEffect deps)
+		statusCounts,
 
 		// Actions
 		setStatus,
@@ -390,6 +446,7 @@ export function useStudyStore() {
 		setTheme,
 		toggleTheme,
 		setStudyMode,
+		setDailyGoal,
 		incrementStreak,
 		resetStreak,
 
