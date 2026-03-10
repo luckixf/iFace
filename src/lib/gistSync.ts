@@ -146,14 +146,30 @@ export async function loadFromGist(
   const file = gist.files[GIST_FILENAME];
   if (!file) return null;
 
-  // If content is truncated, fetch from raw_url
+  // If content is truncated, re-fetch via the GitHub API using the gist id +
+  // filename endpoint. We CANNOT do a direct fetch() of raw_url with an
+  // Authorization header because gist.githubusercontent.com rejects the
+  // CORS preflight (OPTIONS) for requests that carry custom headers, causing
+  // an ERR_FAILED in the browser even though the token is valid.
+  //
+  // The safe alternative is to call the GitHub REST API which properly sets
+  // Access-Control-Allow-Origin and supports our Bearer token:
+  //   GET /gists/{gist_id}  with  Accept: application/vnd.github.raw+json
+  // This returns the raw file content directly as plain text.
   let rawContent = file.content;
-  if (file.truncated && file.raw_url) {
-    const rawRes = await fetch(file.raw_url, {
-      headers: { Authorization: `Bearer ${token}` },
+  if (file.truncated) {
+    // Using the "raw" media type causes GitHub to return the file content
+    // as plain text instead of the normal JSON envelope — no CORS issues.
+    const rawRes = await fetch(`${GH_API}/gists/${gist.id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github.raw+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
     });
     if (!rawRes.ok) {
-      throw new Error(`Failed to fetch raw Gist content: ${rawRes.status}`);
+      const body = await rawRes.text().catch(() => "");
+      throw new Error(`Failed to fetch full Gist content: ${rawRes.status} ${body}`);
     }
     rawContent = await rawRes.text();
   }
