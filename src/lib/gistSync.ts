@@ -1,28 +1,61 @@
 /**
- * gistSync.ts
+ * gistSync.ts — Cloud sync via GitHub Gist
  *
- * Sync iFace study progress and custom question banks to/from a private
- * GitHub Gist named "iface-backup.json".
+ * ── Design philosophy ──────────────────────────────────────────────────────
  *
- * Data shape stored in the Gist:
- * {
- *   version: 2,
- *   exportedAt: "<ISO timestamp>",
- *   studyRecords: StudyRecord[],
- *   customQuestions: Question[],   // only questions with a source field
- *   categoryMap: CategoryMap,
- *   customSources: string[],
- * }
+ * Built-in questions (625 items, ~1.3 MB) are NEVER uploaded.
+ * They live in /public/questions/ and are fetched fresh on every device.
+ * The app already has all built-in question text locally; there is zero value
+ * in backing them up and it wastes ~95% of the Gist quota.
  *
- * Key design decisions:
- *  - Version is MINIMUM_SUPPORTED_VERSION..BACKUP_VERSION — we read any version
- *    in that range and silently migrate forward on next push.
- *  - Gist ID is cached in sessionStorage so repeated push/pull in the same tab
- *    don't burn extra API calls on list pagination.
- *  - Truncated files are fetched via the per-file raw endpoint on the GitHub API
- *    (not gist.githubusercontent.com) to avoid CORS preflight failures.
- *  - JSON is stored minified (no indentation) to minimise file size and reduce
- *    the chance of hitting GitHub's 1 MB truncation threshold.
+ * What we DO back up (target: < 100 KB for a heavy user):
+ *
+ *   studyRecords     — { questionId, status, lastUpdated, reviewCount }[]
+ *                      ~94 bytes each × 625 questions = ~57 KB worst case
+ *                      Encoded in a compact columnar format (see below).
+ *
+ *   customQuestions  — Only user-imported questions (those with q.source set).
+ *                      Built-in questions are identified by their stable IDs
+ *                      and excluded.
+ *
+ *   categoryMap      — Only non-builtin (custom) categories.
+ *                      Built-in categories are re-seeded locally on load.
+ *
+ *   customSources    — string[] of user-imported source names.
+ *
+ * ── Compact record encoding ────────────────────────────────────────────────
+ *
+ * Instead of storing an array of JSON objects for study records we use a
+ * columnar encoding that cuts the payload by ~60%:
+ *
+ *   {
+ *     ids:      string[]   — questionId for each record
+ *     statuses: number[]   — 0=unlearned 1=mastered 2=review
+ *     times:    number[]   — lastUpdated as seconds since epoch (÷1000)
+ *     counts:   number[]   — reviewCount
+ *   }
+ *
+ * Compared with the object-per-record format:
+ *   Object format:  94 bytes × 625 = 58 750 bytes
+ *   Columnar format: ~35 bytes × 625 = ~22 000 bytes   (estimated)
+ *
+ * ── ID stability ──────────────────────────────────────────────────────────
+ *
+ * Built-in question IDs follow a stable naming convention:
+ *   js-001 … js-065, react-001, go-basics-001, etc.
+ *
+ * Custom questions get the prefix  custom_<source>_<originalId>
+ * (stamped in importCustomQuestions in questionLoader.ts).
+ *
+ * A question is considered "built-in" if its ID does NOT start with
+ * "custom_".  This lets us filter without maintaining a separate allowlist.
+ *
+ * ── Version history ───────────────────────────────────────────────────────
+ *
+ *   v1  initial release — full question objects included in backup
+ *   v2  attempted fix — still included full question objects
+ *   v3  this version — records-only, compact columnar encoding
+ *       Readers also accept v1/v2 (decoded to the same GistBackup shape).
  */
 
 import type { Question, StudyRecord } from "@/types";
@@ -33,52 +66,136 @@ import type { CategoryMap } from "@/lib/db";
 const GIST_FILENAME = "iface-backup.json";
 const GIST_DESCRIPTION = "iFace study progress backup (auto-generated)";
 
-/** Current schema version written by this code. */
-const BACKUP_VERSION = 2;
-
-/** Oldest version we can still read (v1 has the same shape, just different number). */
+const BACKUP_VERSION = 3;
 const MINIMUM_SUPPORTED_VERSION = 1;
 
 const GH_API = "https://api.github.com";
 
-/** sessionStorage key for the cached Gist ID. */
+/** sessionStorage key — avoids re-paginating gist list on every push/pull */
 const GIST_ID_CACHE_KEY = "iface_gist_id";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Status codec ─────────────────────────────────────────────────────────────
 
+const STATUS_ENCODE: Record<string, number> = {
+  unlearned: 0,
+  mastered: 1,
+  review: 2,
+};
+
+const STATUS_DECODE: Record<number, StudyRecord["status"]> = {
+  0: "unlearned",
+  1: "mastered",
+  2: "review",
+};
+
+// ─── Compact record column format ─────────────────────────────────────────────
+
+interface CompactRecords {
+  /** question IDs */
+  ids: string[];
+  /** 0=unlearned 1=mastered 2=review */
+  statuses: number[];
+  /** Unix seconds (÷1000 from ms timestamp) */
+  times: number[];
+  /** reviewCount */
+  counts: number[];
+}
+
+function encodeRecords(records: StudyRecord[]): CompactRecords {
+  const ids: string[] = [];
+  const statuses: number[] = [];
+  const times: number[] = [];
+  const counts: number[] = [];
+
+  for (const r of records) {
+    ids.push(r.questionId);
+    statuses.push(STATUS_ENCODE[r.status] ?? 0);
+    times.push(Math.floor(r.lastUpdated / 1000));
+    counts.push(r.reviewCount);
+  }
+
+  return { ids, statuses, times, counts };
+}
+
+function decodeRecords(compact: CompactRecords): StudyRecord[] {
+  const { ids, statuses, times, counts } = compact;
+  const len = ids.length;
+  const records: StudyRecord[] = [];
+
+  for (let i = 0; i < len; i++) {
+    records.push({
+      questionId: ids[i],
+      status: STATUS_DECODE[statuses[i]] ?? "unlearned",
+      lastUpdated: (times[i] ?? 0) * 1000,
+      reviewCount: counts[i] ?? 0,
+    });
+  }
+
+  return records;
+}
+
+// ─── Payload types ────────────────────────────────────────────────────────────
+
+/** Shape written to / read from Gist (v3) */
+interface GistPayloadV3 {
+  version: 3;
+  exportedAt: string;
+  /** Compact columnar study records */
+  records: CompactRecords;
+  /** User-imported questions only (no built-in question text) */
+  customQuestions: Question[];
+  /** Non-builtin categories only */
+  customCategories: CategoryMap;
+  customSources: string[];
+}
+
+/** Legacy v1/v2 shape — full question objects included */
+interface GistPayloadLegacy {
+  version: 1 | 2;
+  exportedAt?: string;
+  studyRecords?: StudyRecord[];
+  customQuestions?: Question[];
+  categoryMap?: CategoryMap;
+  customSources?: string[];
+}
+
+// ─── Public types ─────────────────────────────────────────────────────────────
+
+/**
+ * Normalised backup data — this is what the rest of the app deals with,
+ * regardless of which on-disk version was read.
+ */
 export interface GistBackup {
   version: number;
   exportedAt: string;
   studyRecords: StudyRecord[];
-  /** Only user-imported (custom) questions; built-in ones are re-fetched locally */
   customQuestions: Question[];
-  categoryMap: CategoryMap;
+  /** Full category map (custom categories only; builtins restored locally) */
+  customCategories: CategoryMap;
   customSources: string[];
 }
 
 export interface SyncResult {
   ok: boolean;
   error?: string;
-  /** ISO timestamp of the backup that was just written/read */
   exportedAt?: string;
-  /** Number of study records in the backup */
   recordCount?: number;
-  /** Number of custom questions in the backup */
   questionCount?: number;
 }
 
-interface GistFile {
-  filename: string;
-  /** Inline content — only present and complete when truncated === false */
-  content?: string;
-  truncated?: boolean;
-  raw_url?: string;
-}
+// ─── GitHub API types ─────────────────────────────────────────────────────────
 
 interface GistListItem {
   id: string;
   description: string;
   files: Record<string, { filename: string } | null>;
+}
+
+interface GistFile {
+  filename: string;
+  content?: string;
+  truncated?: boolean;
+  raw_url?: string;
 }
 
 interface GistResponse {
@@ -89,31 +206,22 @@ interface GistResponse {
   html_url: string;
 }
 
-// ─── Session-level Gist ID cache ──────────────────────────────────────────────
+// ─── Session Gist ID cache ────────────────────────────────────────────────────
 
 function getCachedGistId(): string | null {
-  try {
-    return sessionStorage.getItem(GIST_ID_CACHE_KEY);
-  } catch {
-    return null;
-  }
+  try { return sessionStorage.getItem(GIST_ID_CACHE_KEY); } catch { return null; }
 }
 
 function setCachedGistId(id: string): void {
-  try {
-    sessionStorage.setItem(GIST_ID_CACHE_KEY, id);
-  } catch {}
+  try { sessionStorage.setItem(GIST_ID_CACHE_KEY, id); } catch {}
 }
 
 function clearCachedGistId(): void {
-  try {
-    sessionStorage.removeItem(GIST_ID_CACHE_KEY);
-  } catch {}
+  try { sessionStorage.removeItem(GIST_ID_CACHE_KEY); } catch {}
 }
 
 // ─── GitHub API helpers ───────────────────────────────────────────────────────
 
-/** Base headers for all GitHub API calls (JSON envelope). */
 function ghHeaders(token: string): HeadersInit {
   return {
     Authorization: `Bearer ${token}`,
@@ -124,9 +232,8 @@ function ghHeaders(token: string): HeadersInit {
 }
 
 /**
- * Thin fetch wrapper for the GitHub REST API.
- * Throws a descriptive Error on non-2xx responses.
- * Returns `undefined` for 204 No Content.
+ * Thin fetch wrapper around the GitHub REST API.
+ * Throws a descriptive Error on non-2xx.  Returns undefined for 204.
  */
 async function ghFetch<T>(
   token: string,
@@ -152,7 +259,6 @@ async function ghFetch<T>(
   }
 
   if (res.status === 204) return undefined as unknown as T;
-
   return res.json() as Promise<T>;
 }
 
@@ -160,8 +266,7 @@ async function ghFetch<T>(
 
 /**
  * Find the iFace backup Gist ID.
- * Checks sessionStorage cache first, then paginates through the user's gists.
- * Returns null if not found.
+ * Checks session cache first; falls back to paginating the user's gist list.
  */
 export async function findBackupGistId(token: string): Promise<string | null> {
   const cached = getCachedGistId();
@@ -188,58 +293,40 @@ export async function findBackupGistId(token: string): Promise<string | null> {
   return null;
 }
 
-// ─── Raw content fetcher ──────────────────────────────────────────────────────
+// ─── Truncated content fetcher ────────────────────────────────────────────────
 
 /**
- * Fetch the raw text content of a specific file inside a Gist via the GitHub
- * REST API — NOT via gist.githubusercontent.com.
+ * Fetch the raw content of a truncated Gist file.
  *
- * Background: gist.githubusercontent.com (the static CDN) rejects browser CORS
- * preflight requests (OPTIONS) that carry an Authorization header, resulting in
- * ERR_FAILED even with a valid token. This happens whenever `file.truncated` is
- * true (files > ~1 MB). The GitHub REST API at api.github.com does support CORS
- * with Authorization headers, so we use it instead.
+ * WHY NOT fetch(raw_url, { headers: { Authorization } })?
+ *   gist.githubusercontent.com (the static CDN) rejects browser CORS
+ *   preflight (OPTIONS) for requests that carry custom headers →
+ *   ERR_FAILED even with a valid token.
  *
- * The `Accept: application/vnd.github.raw+json` media type on a
- * GET /gists/{gist_id} request makes GitHub return the full JSON response (not
- * a single raw file). For a per-file raw body we must hit:
+ * SOLUTION:
+ *   Private Gist raw_urls already embed a short-lived access token in
+ *   their query string, so we can fetch them WITHOUT an Authorization
+ *   header.  No custom header → no preflight → no CORS failure.
  *
- *   GET /gists/{gist_id}/raw/{filename}  — unfortunately this endpoint doesn't
- *   exist in the GitHub REST API v3.
- *
- * The correct approach is to re-GET /gists/{gist_id} — GitHub returns the full
- * (non-truncated) file content in the normal JSON response when the file is
- * small enough, but for large files it sets `truncated: true` and omits
- * `content`. In that edge case we must use the `raw_url` but strip the
- * Authorization header (public raw URLs don't need auth and don't trigger
- * preflight):
- *
- *   • Private Gists: raw_url embeds an auth token in the query string —
- *     no Authorization header needed, so NO preflight is triggered.
- *   • The fetch is a simple GET with no custom headers → no preflight → CORS ok.
- *
- * This is the only reliable cross-browser solution without a server proxy.
+ * With the new v3 compact format the backup is ~20–60 KB so truncation
+ * (GitHub threshold: ~1 MB) should almost never occur.  This code is a
+ * safety net for unusual edge cases (e.g. thousands of custom questions).
  */
 async function fetchTruncatedContent(
   token: string,
   gistId: string,
   rawUrl: string,
 ): Promise<string> {
-  // Strategy 1: fetch raw_url WITHOUT Authorization header.
-  // For private gists the raw_url already embeds a short-lived token in its
-  // query string, so no auth header is required. No custom header → no CORS
-  // preflight → no ERR_FAILED.
+  // Strategy 1: fetch raw_url without Authorization (no preflight)
   try {
     const res = await fetch(rawUrl);
     if (res.ok) return res.text();
   } catch {
-    // fall through to strategy 2
+    // fall through
   }
 
-  // Strategy 2: re-fetch the gist via the REST API asking for a fresh
-  // response — sometimes GitHub returns the full content on a second try
-  // (e.g. the file was right at the boundary). We try without the raw
-  // media type first to get the normal JSON envelope.
+  // Strategy 2: re-fetch the gist via REST API — sometimes a second
+  // request returns the full content when the file is near the boundary
   const freshGist = await ghFetch<GistResponse>(token, `/gists/${gistId}`);
   const freshFile = freshGist.files[GIST_FILENAME];
   if (freshFile && !freshFile.truncated && freshFile.content) {
@@ -247,19 +334,106 @@ async function fetchTruncatedContent(
   }
 
   throw new Error(
-    "Gist file is too large to fetch (>1 MB). " +
-    "Please delete the cloud backup and create a new one — " +
-    "built-in questions are not included in backups, " +
-    "only your study records and custom questions.",
+    "Backup file exceeds 1 MB and cannot be fetched due to browser CORS " +
+    "restrictions on the GitHub CDN. Delete the cloud backup and create a " +
+    "new one — with the v3 compact format this should no longer occur.",
   );
+}
+
+// ─── Payload parser / normaliser ──────────────────────────────────────────────
+
+/**
+ * Parse raw JSON text → GistBackup, handling v1/v2/v3.
+ * Throws on invalid JSON, unsupported version, or missing required fields.
+ */
+function parsePayload(raw: string): GistBackup {
+  if (!raw.trim()) throw new Error("Backup file is empty");
+
+  let data: Record<string, unknown>;
+  try {
+    data = JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new Error("Backup file contains invalid JSON — it may be corrupted");
+  }
+
+  const v = typeof data.version === "number" ? data.version : 0;
+
+  if (v < MINIMUM_SUPPORTED_VERSION) {
+    throw new Error(
+      `Backup version ${v} is too old (minimum supported: ${MINIMUM_SUPPORTED_VERSION}). ` +
+      "Please create a new backup.",
+    );
+  }
+  if (v > BACKUP_VERSION) {
+    throw new Error(
+      `Backup version ${v} was created by a newer version of iFace — ` +
+      "please update the app.",
+    );
+  }
+
+  // ── v3 ──
+  if (v === 3) {
+    const p = data as unknown as GistPayloadV3;
+    const compact = p.records;
+    const studyRecords =
+      compact &&
+      Array.isArray(compact.ids) &&
+      compact.ids.length > 0
+        ? decodeRecords(compact)
+        : [];
+
+    return {
+      version: 3,
+      exportedAt: typeof p.exportedAt === "string" ? p.exportedAt : new Date().toISOString(),
+      studyRecords,
+      customQuestions: Array.isArray(p.customQuestions) ? p.customQuestions : [],
+      customCategories:
+        p.customCategories && typeof p.customCategories === "object"
+          ? (p.customCategories as CategoryMap)
+          : {},
+      customSources: Array.isArray(p.customSources) ? p.customSources : [],
+    };
+  }
+
+  // ── v1 / v2 (legacy) — full question objects present ──
+  {
+    const p = data as unknown as GistPayloadLegacy;
+    const studyRecords = Array.isArray(p.studyRecords) ? p.studyRecords : [];
+
+    // Separate custom questions from built-in ones.
+    // Built-in IDs do NOT start with "custom_".
+    const allBacked = Array.isArray(p.customQuestions) ? p.customQuestions : [];
+    const customQuestions = allBacked.filter(
+      (q) => typeof q.id === "string" && q.id.startsWith("custom_"),
+    );
+
+    // Extract only non-builtin categories from the legacy categoryMap
+    const rawMap =
+      p.categoryMap && typeof p.categoryMap === "object"
+        ? (p.categoryMap as CategoryMap)
+        : {};
+    const customCategories: CategoryMap = {};
+    for (const [key, entry] of Object.entries(rawMap)) {
+      if (!entry.builtin) customCategories[key] = entry;
+    }
+
+    return {
+      version: v,
+      exportedAt: typeof p.exportedAt === "string" ? p.exportedAt : new Date().toISOString(),
+      studyRecords,
+      customQuestions,
+      customCategories,
+      customSources: Array.isArray(p.customSources) ? p.customSources : [],
+    };
+  }
 }
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 /**
- * Load the backup from the user's private Gist.
+ * Load and parse the backup from the user's private Gist.
  * Returns null if no backup Gist exists yet.
- * Throws on network errors or unreadable data (caller should catch).
+ * Throws on network errors or unreadable data.
  */
 export async function loadFromGist(token: string): Promise<GistBackup | null> {
   const gistId = await findBackupGistId(token);
@@ -273,72 +447,37 @@ export async function loadFromGist(token: string): Promise<GistBackup | null> {
   let rawContent: string;
 
   if (file.truncated) {
-    if (!file.raw_url) {
-      throw new Error("Gist file is truncated but raw_url is missing");
-    }
+    if (!file.raw_url) throw new Error("Gist file is truncated but raw_url is missing");
     rawContent = await fetchTruncatedContent(token, gistId, file.raw_url);
   } else {
     rawContent = file.content ?? "";
   }
 
-  if (!rawContent.trim()) {
-    throw new Error("Gist backup file is empty");
-  }
-
-  let parsed: GistBackup;
-  try {
-    parsed = JSON.parse(rawContent) as GistBackup;
-  } catch {
-    throw new Error("Backup file contains invalid JSON — it may be corrupted");
-  }
-
-  // Version gate: accept v1..vCURRENT, reject anything newer (future-proofing)
-  // and anything older than the minimum we support.
-  const v = parsed.version ?? 0;
-  if (v < MINIMUM_SUPPORTED_VERSION) {
-    throw new Error(
-      `Backup version ${v} is too old to read (minimum: ${MINIMUM_SUPPORTED_VERSION})`,
-    );
-  }
-  if (v > BACKUP_VERSION) {
-    throw new Error(
-      `Backup version ${v} was created by a newer version of iFace. ` +
-      `Please update the app and try again.`,
-    );
-  }
-
-  // Normalise missing fields for forward/backward compat
-  return {
-    version: v,
-    exportedAt: parsed.exportedAt ?? new Date().toISOString(),
-    studyRecords: Array.isArray(parsed.studyRecords) ? parsed.studyRecords : [],
-    customQuestions: Array.isArray(parsed.customQuestions) ? parsed.customQuestions : [],
-    categoryMap: parsed.categoryMap && typeof parsed.categoryMap === "object"
-      ? parsed.categoryMap
-      : {},
-    customSources: Array.isArray(parsed.customSources) ? parsed.customSources : [],
-  };
+  return parsePayload(rawContent);
 }
 
 // ─── Write ────────────────────────────────────────────────────────────────────
 
 /**
- * Save the backup to the user's private Gist.
- * Creates a new Gist on first use; patches the existing one on subsequent saves.
- * JSON is stored minified (no extra whitespace) to keep file size small.
+ * Build the v3 payload from the provided data and save it to Gist.
+ * Creates a new Gist on first use; PATCHes the existing one on subsequent calls.
+ * JSON is minified (no indentation) to minimise file size.
  */
-export async function saveToGist(
+async function writeToGist(
   token: string,
   backup: Omit<GistBackup, "version" | "exportedAt">,
 ): Promise<SyncResult> {
   try {
-    const payload: GistBackup = {
-      version: BACKUP_VERSION,
+    const payload: GistPayloadV3 = {
+      version: 3,
       exportedAt: new Date().toISOString(),
-      ...backup,
+      records: encodeRecords(backup.studyRecords),
+      customQuestions: backup.customQuestions,
+      customCategories: backup.customCategories,
+      customSources: backup.customSources,
     };
 
-    // Minified JSON — no indent — keeps size small, reduces truncation risk
+    // Minified — no indentation — keeps file size small
     const content = JSON.stringify(payload);
 
     const gistId = await findBackupGistId(token);
@@ -360,15 +499,14 @@ export async function saveToGist(
           files: { [GIST_FILENAME]: { content } },
         }),
       });
-      // Cache the new ID immediately
       if (created?.id) setCachedGistId(created.id);
     }
 
     return {
       ok: true,
       exportedAt: payload.exportedAt,
-      recordCount: payload.studyRecords.length,
-      questionCount: payload.customQuestions.length,
+      recordCount: backup.studyRecords.length,
+      questionCount: backup.customQuestions.length,
     };
   } catch (err) {
     return {
@@ -382,7 +520,7 @@ export async function saveToGist(
 
 /**
  * Delete the backup Gist entirely.
- * Also clears the session cache so the next push creates a fresh Gist.
+ * Clears the session cache so the next push creates a fresh Gist.
  */
 export async function deleteBackupGist(token: string): Promise<SyncResult> {
   try {
@@ -400,10 +538,19 @@ export async function deleteBackupGist(token: string): Promise<SyncResult> {
   }
 }
 
-// ─── High-level wrappers used by the UI ──────────────────────────────────────
+// ─── High-level wrappers used by the UI ───────────────────────────────────────
 
 /**
- * Collect all local data and push to Gist.
+ * Collect local data and push to Gist.
+ *
+ * Only uploads:
+ *   • Study records for ALL questions (built-in and custom)
+ *   • Custom (user-imported) question objects
+ *   • Custom (user-created) categories
+ *   • Custom source names
+ *
+ * Built-in question text is NEVER uploaded — it's always fetched from
+ * /public/questions/ locally, keeping the backup tiny.
  */
 export async function pushToGist(token: string): Promise<SyncResult> {
   try {
@@ -422,13 +569,21 @@ export async function pushToGist(token: string): Promise<SyncResult> {
         getCategoryMap(),
       ]);
 
-    // Only backup user-imported questions (those with a source field set)
-    const customQuestions = allQuestions.filter((q) => !!q.source);
+    // Only back up user-imported questions (id starts with "custom_")
+    const customQuestions = allQuestions.filter(
+      (q) => typeof q.id === "string" && q.id.startsWith("custom_"),
+    );
 
-    return saveToGist(token, {
+    // Only back up non-builtin categories
+    const customCategories: CategoryMap = {};
+    for (const [key, entry] of Object.entries(categoryMap)) {
+      if (!entry.builtin) customCategories[key] = entry;
+    }
+
+    return writeToGist(token, {
       studyRecords,
       customQuestions,
-      categoryMap,
+      customCategories,
       customSources,
     });
   } catch (err) {
@@ -443,13 +598,13 @@ export async function pushToGist(token: string): Promise<SyncResult> {
  * Pull backup from Gist and merge into local DB.
  *
  * Merge strategy:
- *  - studyRecords   : full replace (cloud is source of truth for progress)
- *  - customQuestions: upsert (add new, update existing)
- *  - customSources  : replace
- *  - categoryMap    : replace (only non-builtin parts are in the backup)
+ *   studyRecords     — full replace (cloud is source of truth for progress)
+ *   customQuestions  — upsert (add/update; never delete existing ones)
+ *   customSources    — replace
+ *   categoryMap      — overlay custom categories on top of local builtins
  *
- * Returns null  → no backup exists yet (not an error)
- * Returns result.ok === false → something went wrong (show error to user)
+ * Returns null  → no backup exists yet (not an error; caller should be silent)
+ * Returns { ok: false } → error; show message to user
  */
 export async function pullFromGist(token: string): Promise<SyncResult | null> {
   try {
@@ -461,17 +616,17 @@ export async function pullFromGist(token: string): Promise<SyncResult | null> {
       bulkPutQuestions,
       setMeta,
       META_KEYS,
-      saveCategoryMap,
       getCategoryMap,
+      saveCategoryMap,
       DEFAULT_CATEGORY_MAP,
     } = await import("@/lib/db");
 
     const ops: Promise<unknown>[] = [];
 
-    // Always restore study records
+    // Always restore study records (replace strategy)
     ops.push(bulkPutStudyRecords(backup.studyRecords));
 
-    // Restore custom questions
+    // Upsert custom questions
     if (backup.customQuestions.length > 0) {
       ops.push(bulkPutQuestions(backup.customQuestions));
     }
@@ -481,34 +636,27 @@ export async function pullFromGist(token: string): Promise<SyncResult | null> {
       ops.push(setMeta(META_KEYS.CUSTOM_SOURCES, backup.customSources));
     }
 
-    // Restore category map: merge backup's custom categories on top of
-    // the current builtin defaults so we never lose builtin categories.
-    if (backup.categoryMap && Object.keys(backup.categoryMap).length > 0) {
+    // Merge categories: start from local builtins, overlay backup's custom cats
+    if (Object.keys(backup.customCategories).length > 0) {
       const currentMap = await getCategoryMap();
-      // Start from current builtins, overlay everything from backup
+
+      // Begin with a fresh copy of the builtin defaults
       const merged = { ...DEFAULT_CATEGORY_MAP };
-      for (const [key, entry] of Object.entries(backup.categoryMap)) {
+
+      // Overlay any custom categories from the backup
+      for (const [key, entry] of Object.entries(backup.customCategories)) {
+        // Never overwrite a builtin with a custom entry
         if (!merged[key]) {
-          // It's a custom category — take it from the backup
           merged[key] = entry;
-        } else {
-          // It's a builtin — preserve builtin flag but merge module list
-          merged[key] = {
-            ...merged[key],
-            // add any extra modules the backup has that builtins don't
-            modules: [
-              ...new Set([
-                ...merged[key].modules,
-                ...(entry.modules ?? []),
-              ]),
-            ],
-          };
         }
       }
-      // Also preserve any categories that exist locally but not in backup
+
+      // Preserve any custom categories that exist locally but not in the backup
+      // (so a device-specific import isn't wiped on pull)
       for (const [key, entry] of Object.entries(currentMap)) {
         if (!merged[key]) merged[key] = entry;
       }
+
       ops.push(saveCategoryMap(merged));
     }
 
