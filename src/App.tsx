@@ -9,7 +9,6 @@ const QuestionDetail = lazy(() => import('@/pages/QuestionDetail'))
 const Practice = lazy(() => import('@/pages/Practice'))
 const WeakPoints = lazy(() => import('@/pages/WeakPoints'))
 const ImportPage = lazy(() => import('@/pages/ImportPage'))
-const PromptPage = lazy(() => import('@/pages/PromptPage'))
 
 function PageLoader() {
   return (
@@ -60,7 +59,6 @@ export default function App() {
               <Route path="/practice" element={<Practice />} />
               <Route path="/weak" element={<WeakPoints />} />
               <Route path="/import" element={<ImportPage />} />
-              <Route path="/prompt" element={<PromptPage />} />
             </Routes>
           </Suspense>
         </main>

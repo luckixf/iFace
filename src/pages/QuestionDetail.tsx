@@ -7,7 +7,13 @@ import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer'
 import { useQuestion, useQuestions } from '@/hooks/useQuestions'
 import { useAIStore } from '@/store/useAIStore'
 import { clearSessionReview, useStudyStore } from '@/store/useStudyStore'
-import { DIFFICULTY_LABELS, DIFFICULTY_STYLES, type StudyStatus } from '@/types'
+import {
+  DIFFICULTY_LABELS,
+  DIFFICULTY_STYLES,
+  QUESTION_TYPE_LABELS,
+  QUESTION_TYPE_STYLES,
+  type StudyStatus,
+} from '@/types'
 
 // ─── Status Action Button ─────────────────────────────────────────────────────
 
@@ -322,6 +328,7 @@ interface MyAnswerInputProps {
   questionId: string
   questionText: string
   answerText: string
+  answerVisible: boolean
   onOpenAIPanel: () => void
   isAiEnabled: boolean
   /** When true the component is in "compact / inside answer card" mode */
@@ -332,6 +339,7 @@ function MyAnswerInput({
   questionId,
   questionText,
   answerText,
+  answerVisible,
   onOpenAIPanel,
   isAiEnabled,
   compact = false,
@@ -347,6 +355,7 @@ function MyAnswerInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isStreaming = streaming && streamingQuestionId === `${questionId}_selfcheck`
+  const canCompareWithAnswer = answerVisible && isAiEnabled && answerText.trim().length > 0
 
   // Reset when question changes — always open again
   useEffect(() => {
@@ -355,7 +364,7 @@ function MyAnswerInput({
     setFeedback(null)
     setStreamingFeedback('')
     setError(null)
-  }, [])
+  }, [questionId])
 
   // Auto-focus textarea on mount / question change
   useEffect(() => {
@@ -366,11 +375,15 @@ function MyAnswerInput({
 
   const handleSubmit = useCallback(async () => {
     if (!text.trim() || isStreaming) return
+    if (!answerVisible || !answerText.trim()) {
+      setError('请先查看参考答案，再使用 AI 对照点评。')
+      return
+    }
 
     setError(null)
     setStreamingFeedback('')
 
-    const systemPrompt = `你是一位严格但友善的前端面试教练。用户在看到参考答案之前，凭记忆写下了自己的作答，请你：
+    const systemPrompt = `你是一位严格但友善的建工考试教练。用户在看到参考答案之前，凭记忆写下了自己的作答，请你：
 1. 先肯定用户答对/答到位的部分（简短，1-2句）
 2. 指出遗漏或不够准确的关键点（重点，最多3条）
 3. 给出1个最重要的补充建议
@@ -400,7 +413,7 @@ function MyAnswerInput({
         setStreamingFeedback('')
       },
     )
-  }, [text, isStreaming, questionId, questionText, answerText, sendMessage])
+  }, [text, isStreaming, questionId, questionText, answerText, answerVisible, sendMessage])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -616,6 +629,10 @@ function MyAnswerInput({
               }}
             >
               <span style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                {!answerVisible ? (
+                  <>先写下你的作答，查看答案后可让 AI 对照点评</>
+                ) : (
+                  <>
                 {isAiEnabled ? (
                   <>⌘+Enter 提交作答</>
                 ) : (
@@ -650,11 +667,13 @@ function MyAnswerInput({
                     配置 AI 才能获得反馈
                   </button>
                 )}
+                  </>
+                )}
               </span>
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={!text.trim() || !isAiEnabled || isStreaming}
+                disabled={!text.trim() || !canCompareWithAnswer || isStreaming}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -662,11 +681,12 @@ function MyAnswerInput({
                   padding: '4px 12px',
                   borderRadius: 7,
                   border: 'none',
-                  background: text.trim() && isAiEnabled ? 'var(--primary)' : 'var(--surface-3)',
-                  color: text.trim() && isAiEnabled ? 'white' : 'var(--text-3)',
+                  background:
+                    text.trim() && canCompareWithAnswer ? 'var(--primary)' : 'var(--surface-3)',
+                  color: text.trim() && canCompareWithAnswer ? 'white' : 'var(--text-3)',
                   fontSize: 12,
                   fontWeight: 500,
-                  cursor: text.trim() && isAiEnabled ? 'pointer' : 'default',
+                  cursor: text.trim() && canCompareWithAnswer ? 'pointer' : 'default',
                   transition: 'all 0.15s',
                 }}
               >
@@ -683,7 +703,7 @@ function MyAnswerInput({
                   <line x1="22" y1="2" x2="11" y2="13" />
                   <polygon points="22 2 15 22 11 13 2 9 22 2" />
                 </svg>
-                提交作答
+                {answerVisible ? '提交作答' : '等待揭晓答案'}
               </button>
             </div>
           </div>
@@ -903,9 +923,14 @@ interface AIDrawerProps {
   onOpenSettings: () => void
 }
 
+function getAIDrawerSessionId(questionId: string, answerVisible: boolean): string {
+  return answerVisible ? questionId : `${questionId}__prereveal`
+}
+
 function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AIDrawerProps) {
   const { config, getMessages, clearSession } = useAIStore()
-  const messages = getMessages(question.id)
+  const sessionId = getAIDrawerSessionId(question.id, answerVisible)
+  const messages = getMessages(sessionId)
 
   // Lock body scroll on mobile when open
   useEffect(() => {
@@ -1042,7 +1067,7 @@ function AIDrawer({ open, onClose, question, answerVisible, onOpenSettings }: AI
             {messages.length > 0 && (
               <button
                 type="button"
-                onClick={() => clearSession(question.id)}
+                onClick={() => clearSession(sessionId)}
                 title="清除对话历史"
                 style={{
                   width: 26,
@@ -1172,6 +1197,7 @@ export default function QuestionDetail() {
   const [marking, setMarking] = useState(false)
   const [justMarked, setJustMarked] = useState<StudyStatus | null>(null)
   const [lastPressedKey, setLastPressedKey] = useState<'1' | '2' | '3' | null>(null)
+  const [selectedAnswers, setSelectedAnswers] = useState<string[]>([])
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [celebrationStreak, setCelebrationStreak] = useState(0)
@@ -1214,6 +1240,7 @@ export default function QuestionDetail() {
     setAnswerVisible(false)
     setJustMarked(null)
     setLastPressedKey(null)
+    setSelectedAnswers([])
     window.scrollTo({ top: 0, behavior: 'smooth' })
     // Clear per-question session review guard so the new question starts fresh
     return () => {
@@ -1223,6 +1250,30 @@ export default function QuestionDetail() {
 
   const currentStatus = id ? getStatus(id) : 'unlearned'
   const record = id ? getRecord(id) : undefined
+  const isChoiceQuestion = question?.type === 'single' || question?.type === 'multiple'
+  const isMultipleChoice = question?.type === 'multiple'
+  const correctAnswers = question?.correctAnswers ?? []
+  const selectedAnswerSet = useMemo(() => new Set(selectedAnswers), [selectedAnswers])
+  const correctAnswerSet = useMemo(() => new Set(correctAnswers), [correctAnswers])
+  const selectionMatches =
+    selectedAnswers.length > 0 &&
+    selectedAnswers.length === correctAnswers.length &&
+    selectedAnswers.every((key) => correctAnswerSet.has(key))
+
+  const handleOptionToggle = useCallback(
+    (optionKey: string) => {
+      if (!isChoiceQuestion || answerVisible) return
+      if (isMultipleChoice) {
+        setSelectedAnswers((prev) =>
+          prev.includes(optionKey) ? prev.filter((item) => item !== optionKey) : [...prev, optionKey],
+        )
+        return
+      }
+
+      setSelectedAnswers([optionKey])
+    },
+    [answerVisible, isChoiceQuestion, isMultipleChoice],
+  )
 
   const handleSetStatus = useCallback(
     async (status: StudyStatus, key?: '1' | '2' | '3') => {
@@ -1545,28 +1596,142 @@ export default function QuestionDetail() {
               color: 'var(--text)',
               lineHeight: 1.65,
               letterSpacing: '-0.005em',
+              whiteSpace: 'pre-wrap',
             }}
           >
             {question.question}
           </h1>
 
-          {/* Tags */}
-          {question.tags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {question.tags.map((tag) => (
-                <span
-                  key={tag}
+          {question.questionImages && question.questionImages.length > 0 && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {question.questionImages.map((image, index) => (
+                <div
+                  key={image}
                   style={{
-                    fontSize: 11,
-                    padding: '2px 8px',
-                    borderRadius: 5,
+                    borderRadius: 14,
+                    overflow: 'hidden',
                     border: '1px solid var(--border-subtle)',
-                    color: 'var(--text-3)',
+                    background: 'var(--surface-2)',
                   }}
                 >
-                  #{tag}
-                </span>
+                  <img
+                    src={image}
+                    alt={`题图 ${index + 1}`}
+                    loading="lazy"
+                    decoding="async"
+                    fetchPriority="low"
+                    style={{
+                      width: '100%',
+                      display: 'block',
+                    }}
+                  />
+                </div>
               ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <span
+              style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 5,
+                border: '1px solid',
+                color: QUESTION_TYPE_STYLES[question.type].color,
+                background: QUESTION_TYPE_STYLES[question.type].background,
+                borderColor: QUESTION_TYPE_STYLES[question.type].borderColor,
+              }}
+            >
+              {QUESTION_TYPE_LABELS[question.type]}
+            </span>
+            {question.tags.map((tag) => (
+              <span
+                key={tag}
+                style={{
+                  fontSize: 11,
+                  padding: '2px 8px',
+                  borderRadius: 5,
+                  border: '1px solid var(--border-subtle)',
+                  color: 'var(--text-3)',
+                }}
+              >
+                #{tag}
+              </span>
+            ))}
+          </div>
+
+          {question.options && question.options.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-3)' }}>
+                {isMultipleChoice ? '可多选，先选答案再查看解析。' : '单选作答，先选答案再查看解析。'}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {question.options.map((option) => {
+                  const selected = selectedAnswerSet.has(option.key)
+                  const correct = correctAnswerSet.has(option.key)
+
+                  let borderColor = 'var(--border-subtle)'
+                  let background = 'var(--surface-2)'
+                  let color = 'var(--text)'
+
+                  if (!answerVisible && selected) {
+                    borderColor = 'rgba(var(--primary-rgb),0.38)'
+                    background = 'var(--primary-light)'
+                    color = 'var(--primary)'
+                  }
+
+                  if (answerVisible && correct) {
+                    borderColor = 'rgba(16,185,129,0.32)'
+                    background = 'rgba(16,185,129,0.08)'
+                    color = '#10b981'
+                  } else if (answerVisible && selected && !correct) {
+                    borderColor = 'rgba(239,68,68,0.28)'
+                    background = 'rgba(239,68,68,0.08)'
+                    color = '#ef4444'
+                  }
+
+                  return (
+                    <button
+                      type="button"
+                      key={option.key}
+                      onClick={() => handleOptionToggle(option.key)}
+                      disabled={answerVisible}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 10,
+                        width: '100%',
+                        padding: '12px 14px',
+                        borderRadius: 12,
+                        border: `1px solid ${borderColor}`,
+                        background,
+                        color,
+                        textAlign: 'left',
+                        cursor: answerVisible ? 'default' : 'pointer',
+                        transition: 'all 0.18s',
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 24,
+                          height: 24,
+                          borderRadius: 999,
+                          border: '1px solid currentColor',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {option.key}
+                      </span>
+                      <span style={{ lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{option.text}</span>
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 
@@ -1618,7 +1783,11 @@ export default function QuestionDetail() {
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
-              查看参考答案
+              {isChoiceQuestion
+                ? selectedAnswers.length > 0
+                  ? '提交并查看答案'
+                  : '直接查看答案'
+                : '查看参考答案'}
               <Kbd>Space</Kbd>
             </button>
           )}
@@ -1630,7 +1799,8 @@ export default function QuestionDetail() {
             <MyAnswerInput
               questionId={id ?? ''}
               questionText={question.question}
-              answerText={question.answer}
+              answerText={answerVisible ? question.answer : ''}
+              answerVisible={answerVisible}
               onOpenAIPanel={() => setAiDrawerOpen(true)}
               isAiEnabled={isAiEnabled}
             />
@@ -1644,6 +1814,45 @@ export default function QuestionDetail() {
             className="card animate-scale-in"
             style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}
           >
+            {isChoiceQuestion && (
+              <div
+                style={{
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  border: '1px solid var(--border-subtle)',
+                  background: 'var(--surface-2)',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  fontSize: 12,
+                  color: 'var(--text-2)',
+                }}
+              >
+                <span>
+                  标准答案：
+                  <strong style={{ color: 'var(--text)', marginLeft: 6 }}>
+                    {correctAnswers.join(' / ') || '未提供'}
+                  </strong>
+                </span>
+                <span>
+                  你的选择：
+                  <strong style={{ color: 'var(--text)', marginLeft: 6 }}>
+                    {selectedAnswers.join(' / ') || '未作答'}
+                  </strong>
+                </span>
+                {selectedAnswers.length > 0 && (
+                  <span
+                    style={{
+                      color: selectionMatches ? 'var(--success)' : 'var(--warning)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {selectionMatches ? '回答正确' : '继续巩固'}
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Answer header */}
             <div
               style={{
@@ -1797,6 +2006,7 @@ export default function QuestionDetail() {
                 questionId={id ?? ''}
                 questionText={question.question}
                 answerText={question.answer}
+                answerVisible={answerVisible}
                 onOpenAIPanel={() => setAiDrawerOpen(true)}
                 isAiEnabled={isAiEnabled}
                 compact

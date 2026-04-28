@@ -659,7 +659,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showToast(`已导出 ${data.questions.length} 题、${data.studyRecords.length} 条记录`)
+      showToast(`已导出 ${data.questions.length} 道自定义题、${data.studyRecords.length} 条记录`)
     } catch {
       showToast('导出失败，请重试', 'error')
     } finally {
@@ -689,7 +689,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
           rCount = data.studyRecords.length
         }
 
-        showToast(`导入成功：${qCount} 题、${rCount} 条记录`)
+        showToast(`导入成功：${qCount} 道自定义题、${rCount} 条记录`)
 
         // Refresh stats
         const [questions, records] = await Promise.all([getAllQuestions(), getAllStudyRecords()])
@@ -1466,7 +1466,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                 checked={localConfig.enabled}
                 onChange={(v) => patch({ enabled: v })}
                 label="启用 AI 助手"
-                description="在题目详情页启用 AI 辅助分析和面试指导"
+                description="在题目详情页启用 AI 辅助分析、答题点评和解题指导"
               />
 
               {/* API Key */}
@@ -2291,7 +2291,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   }}
                 >
                   {[
-                    { label: '题目总数', value: dataStats.questions, color: 'var(--primary)' },
+                    { label: '自定义题目', value: dataStats.questions, color: 'var(--primary)' },
                     { label: '学习记录', value: dataStats.records, color: 'var(--success)' },
                   ].map((stat) => (
                     <div
@@ -2342,7 +2342,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     lineHeight: 1.5,
                   }}
                 >
-                  将题目库和学习记录导出为 JSON 文件，可用于备份或在其他设备恢复。
+                  将自定义题目和学习记录导出为 JSON 文件。内置建工题库仍由本地静态 JSON 提供，不会被重复打包进备份。
                 </p>
                 <button
                   type="button"
@@ -2402,7 +2402,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                     lineHeight: 1.5,
                   }}
                 >
-                  从备份文件恢复数据。已存在的题目和记录将被覆盖更新。
+                  从备份文件恢复自定义题目和学习记录。已存在的同 ID 数据会被覆盖更新。
                 </p>
                 <input
                   ref={importRef}

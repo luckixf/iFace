@@ -15,9 +15,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
-        name: 'iFace · 前端面试刷题助手',
+        name: 'iFace · 建工三科刷题站',
         short_name: 'iFace',
-        description: '前端面试刷题助手，覆盖 JS、React、CSS、TypeScript、性能优化等核心模块',
+        description: '建工考试本地刷题站，覆盖公路工程管理与实务、建设工程法规及相关知识、建设工程施工管理',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',
@@ -54,6 +54,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globIgnores: ['question-assets/construction/**/*', 'questions/construction/**/*'],
         // Never let the Service Worker intercept /api/* requests —
         // those must always reach the Vercel serverless functions via the network.
         navigateFallbackDenylist: [/^\/api\//],
@@ -71,6 +72,34 @@ export default defineConfig({
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+            },
+          },
+          {
+            urlPattern: /^\/questions\/construction\/.*\.json$/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'construction-question-json',
+              cacheableResponse: {
+                statuses: [200],
+              },
+              expiration: {
+                maxEntries: 240,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
+              },
+            },
+          },
+          {
+            urlPattern: /^\/question-assets\/construction\/.*\.(?:webp|png|jpg|jpeg)$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'construction-question-images',
+              cacheableResponse: {
+                statuses: [200],
+              },
+              expiration: {
+                maxEntries: 320,
+                maxAgeSeconds: 60 * 60 * 24 * 30,
               },
             },
           },

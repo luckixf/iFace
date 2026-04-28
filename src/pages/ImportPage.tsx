@@ -9,8 +9,8 @@ import {
   removeCustomSource,
   unregisterModuleFromCategories,
 } from '@/lib/db'
+import { mdToQuestions } from '@/lib/mdImport'
 import { importCustomQuestions, isJSONFile, isMDFile, parseJSONSafe } from '@/lib/questionLoader'
-import { mdToQuestions } from '@/pages/PromptPage'
 
 // ─── Result Toast ─────────────────────────────────────────────────────────────
 
@@ -246,13 +246,13 @@ function DropZone({
               fontWeight: 400,
             }}
           >
-            （留空则自动从文件名推断，如"Go"、"Java"）
+            （留空则自动从文件名推断，如“章节补充”或“桥涵专项”）
           </span>
         </label>
         <input
           id="import-file-category"
           type="text"
-          placeholder="例如：Go、Java、系统设计…"
+          placeholder="例如：桥涵专项、路基补充、项目自编题…"
           value={category}
           onChange={(e) => onCategoryChange(e.target.value)}
           className="input-base"
@@ -432,7 +432,7 @@ function PastePanel({
           <input
             id="import-paste-source"
             type="text"
-            placeholder="例如：字节跳动、我的项目专题…"
+            placeholder="例如：2026 冲刺补充、项目部内训题…"
             value={source}
             onChange={(e) => setSource(e.target.value)}
             className="input-base"
@@ -465,7 +465,7 @@ function PastePanel({
           <input
             id="import-paste-category"
             type="text"
-            placeholder="例如：Go、Java、系统设计…"
+            placeholder="例如：模拟加练、桥梁专项、案例补充…"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
             className="input-base"
@@ -489,7 +489,7 @@ function PastePanel({
         </label>
         <textarea
           id="import-paste-json"
-          placeholder={`粘贴题目 JSON 数组，格式：\n[\n  {\n    "id": "my-001",\n    "module": "Golang",\n    "difficulty": 2,\n    "question": "题目内容",\n    "answer": "## 参考答案\\n...",\n    "tags": ["goroutine"],\n    "source": "高频"\n  }\n]`}
+          placeholder={`粘贴题目 JSON 数组，格式：\n[\n  {\n    "id": "my-001",\n    "module": "建设工程施工管理 · 进度控制专项",\n    "difficulty": 2,\n    "type": "essay",\n    "question": "简述施工进度控制的核心工作步骤。",\n    "answer": "## 参考答案\\n\\n可从目标分解、计划编制、动态跟踪、偏差分析和纠偏措施几个方面作答。",\n    "tags": ["进度控制", "施工管理"],\n    "source": "自定义导入"\n  }\n]`}
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={10}
@@ -755,25 +755,32 @@ function SourcesManager({
 
 const SCHEMA_EXAMPLE = `[
   {
-    "id": "unique-id-001",
-    "module": "React",
+    "id": "road-single-001",
+    "module": "路基工程",
     "difficulty": 2,
-    "question": "解释 React Hooks 的规则",
-    "answer": "## Hooks 规则\\n\\n只在**顶层**调用 Hook...",
-    "tags": ["hooks", "规则"],
-    "source": "高频"
+    "type": "single",
+    "question": "以下关于路基压实控制要点的说法，正确的是哪一项？",
+    "options": [
+      { "key": "A", "text": "压实度检测可完全替代含水量控制" },
+      { "key": "B", "text": "应结合土质、含水量和压实机械综合控制" },
+      { "key": "C", "text": "填筑厚度越大越容易保证压实质量" },
+      { "key": "D", "text": "雨后可直接进行终压，无需复检含水量" }
+    ],
+    "correctAnswers": ["B"],
+    "answer": "路基压实应结合土质、松铺厚度、含水量和压实机械综合控制，不能只看单一指标。",
+    "tags": ["路基", "压实"],
+    "source": "自定义导入"
   }
 ]`
 
 const MODULE_VALUES = [
-  'JS基础',
-  'React',
-  '性能优化',
-  '网络',
-  'CSS',
-  'TypeScript',
-  '手写题',
-  '项目深挖',
+  '公路工程管理与实务',
+  '建设工程法规及相关知识',
+  '建设工程施工管理',
+  '公路工程管理与实务 · 案例专项',
+  '建设工程法规及相关知识 · 合同制度',
+  '建设工程施工管理 · 进度控制',
+  '建设工程施工管理 · 成本控制',
 ]
 
 function SchemaGuide() {
@@ -876,12 +883,16 @@ function SchemaGuide() {
               <tbody>
                 {[
                   ['id', 'string', '必填', '唯一标识符'],
-                  ['module', 'enum', '必填', MODULE_VALUES.join(' | ')],
-                  ['difficulty', '1 | 2 | 3', '必填', '初级 | 中级 | 高级'],
+                  ['module', 'string', '必填', `建议使用：${MODULE_VALUES.join(' | ')}`],
+                  ['difficulty', '1 | 2 | 3', '必填', '1=基础，2=综合，3=案例'],
+                  ['type', 'single | multiple | essay', '建议填写', '单选题 / 多选题 / 解答题'],
                   ['question', 'string', '必填', '题目内容'],
-                  ['answer', 'string (Markdown)', '必填', '参考答案，支持 Markdown'],
-                  ['tags', 'string[]', '必填', '标签数组（可为空数组）'],
-                  ['source', 'string', '可选', '来源标注，如"高频" "字节"'],
+                  ['options', 'QuestionOption[]', '选择题必填', '选择题选项，如 A/B/C/D'],
+                  ['correctAnswers', 'string[]', '选择题建议填写', '正确答案，如 ["A"] 或 ["A","C"]'],
+                  ['answer', 'string (Markdown)', '必填', '答案解析，支持 Markdown'],
+                  ['tags', 'string[]', '必填', '标签数组，可为空'],
+                  ['source', 'string', '可选', '来源标注，如“自定义导入”'],
+                  ['questionImages', 'string[]', '可选', '题目图片路径数组'],
                 ].map(([field, type, required, desc], i) => (
                   <tr
                     key={field}
@@ -1132,7 +1143,7 @@ export default function ImportPage() {
           导入题目
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-3)' }}>
-          支持拖拽 JSON 文件或粘贴 JSON 内容，让 AI 按格式生成后直接导入
+          支持导入 JSON 或 Markdown 题目数据，适合补充单选题、多选题和解答题。
         </p>
       </div>
 
@@ -1369,43 +1380,11 @@ export default function ImportPage() {
             <line x1="8" y1="16" x2="12" y2="16" />
           </svg>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>用 AI 生成题目</p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>题库补充说明</p>
             <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
-              复制本页的 JSON 格式说明，配合项目提示词让 AI 生成题目。 生成完成后粘贴到「粘贴
-              JSON」区域即可一键导入，ID 重复时会自动加前缀避免冲突。
+              当前仓库只面向 JSON / Markdown 题目导入与本地刷题，不需要上传或分发 PDF 原题。
+              如需在本机离线转换自有 PDF，可使用 `tools/pdf-pipeline/` 下的可选工具；请自行确认资料授权。
             </p>
-            <button
-              type="button"
-              onClick={() => navigate('/prompt')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                marginTop: 2,
-                fontSize: 12,
-                fontWeight: 500,
-                color: 'var(--primary)',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              查看 AI 出题 Prompt
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="5" y1="12" x2="19" y2="12" />
-                <polyline points="12 5 19 12 12 19" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>

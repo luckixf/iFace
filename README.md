@@ -1,214 +1,149 @@
-<div align="center">
+# iFace Construction Bank
 
-# 😎 iFace
+这是基于原 iFace 项目改造的一款本地建工刷题网站。题库、做题进度、错题状态和 AI 对话默认保存在浏览器本地，无需注册、无需服务器，打开即可使用。
 
-**前端面试题库 · 智能刷题工具**
+本项目经过 AI 辅助改造与题库清洗，题目数据也经过 OCR / 规则脚本 / AI 审校等流程处理。请务必自行鉴别题目、答案和解析的准确性，本项目不保证题库内容与任何官方教材、考试真题或培训资料完全一致。
 
-[立即体验](https://face.dogxi.me) · [报告问题](https://github.com/dogxii/iFace/issues) · [功能建议](https://github.com/dogxii/iFace/issues)
+## 当前能力
 
-![Version](https://img.shields.io/badge/version-0.9.0-6366f1?style=flat-square)
-![License](https://img.shields.io/badge/license-MIT-10b981?style=flat-square)
-![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?style=flat-square&logo=typescript)
+- 内置三个并行科目分支：`公路工程管理与实务`、`建设工程法规及相关知识`、`建设工程施工管理`。
+- 支持 `单选题`、`多选题`、`解答题`。
+- 支持章节题、历年真题、模拟试卷等目录化浏览。
+- 支持题干配图，图片以静态资源形式按需加载。
+- 支持自定义 JSON / Markdown 题目导入。
+- 学习进度、练习记录、AI 对话等数据默认保存在浏览器本地 IndexedDB。
+- 可选接入兼容 OpenAI API 的模型，用于答案点评、解析辅助和解题指导。
 
-</div>
+## 关于 PDF 和版权
 
----
+仓库不应提交原始 PDF 题库文件。PDF 原题可能涉及版权或授权问题，因此本项目只建议分发已经整理好的 JSON 题目数据和必要的题目图片资源。
 
-## 预览
+普通用户不需要 PDF，也不需要运行 PDF 构建脚本。你可以直接：
 
-https://face.dogxi.me
+- 使用内置的 `public/questions/construction/**/*.json` 题库。
+- 在页面中导入自己的 JSON / Markdown 题目。
+- 通过 `public/question-assets/construction/` 使用已提取好的题目配图。
 
-<div align="center">
-  <img src="docs/screenshots/dashboard.webp" alt="概览页" width="49%" />
-  <img src="docs/screenshots/practice.webp" alt="练习页" width="49%" />
-  <br/><br/>
-  <img src="docs/screenshots/question-detail.webp" alt="题目详情 + AI 助手" width="49%" />
-  <img src="docs/screenshots/settings.webp" alt="设置面板" width="49%" />
-</div>
+为了避免误提交原始资料，仓库已忽略：
 
----
-
-## 简介
-
-iFace 是一款专为前端工程师备战技术面试打造的本地刷题工具。题库、进度、AI 对话全部存储在浏览器本地，无需注册、无需服务器，打开即用。
-
-**核心理念：** 不只是背题，而是真正理解——通过 AI 教练辅助、进度追踪和薄弱点分析，帮助你在面试中清晰表达。
-
----
-
-## 功能特性
-
-### 📚 题库管理
-
-- 内置前端高频面试题，覆盖 JS 基础、React、CSS、网络、手写题等模块
-- 支持导入自定义 JSON 题库，也可通过 AI 出题 Prompt 批量生成
-- 三级难度标注（初级 / 中级 / 高级），支持按模块、难度、状态筛选
-
-### 🎯 智能刷题
-
-- 学习状态追踪：未学习 / 待复习 / 已掌握
-- 今日推荐：自动优先推送待复习题目，其次未学习高频题
-- 连刷记录：每日作答计数、连击天数、历史最高记录
-- 专项练习：自由组合模块 × 难度 × 状态，支持随机顺序
-
-### 🤖 AI 面试教练
-
-- 接入任意兼容 OpenAI API 的模型（GPT、Claude、DeepSeek、Qwen 等）
-- 快捷动作：分析考点 / 答题结构 / 优化答案 / 追问预测 / 踩坑提醒 / 模拟面试
-- 流式输出，手动上划时自动暂停跟随滚动
-- 支持自定义 System Prompt，内置高质量前端面试教练默认 prompt
-
-### 📊 数据与进度
-
-- 模块进度环形图 + 分项进度条，一眼看清短板
-- 薄弱点分析：按复习频次聚合，聚焦最需强化的知识点
-- 数据全量导出 / 导入（JSON 备份），支持多设备迁移
-- 所有数据存储在浏览器 IndexedDB，完全离线可用
-
----
-
-## 快速开始
-
-### 前置要求
-
-- Node.js ≥ 18 或 [Bun](https://bun.sh)
-- （可选）[GitHub CLI](https://cli.github.com) — 用于发版脚本
-
-### 本地运行
-
-```bash
-# 克隆仓库
-git clone https://github.com/dogxii/iFace.git
-cd iFace
-
-# 安装依赖（推荐 bun，也可用 npm/pnpm）
-bun install
-
-# 启动开发服务器
-bun dev
+```text
+local-pdf-sources/
+*.pdf
+*.PDF
 ```
 
-访问 [http://localhost:5173](http://localhost:5173)
+如果你确实需要在本机离线处理自己拥有授权的 PDF，可以查看可选工具目录：
 
-### 构建生产版本
-
-```bash
-bun run build
-bun run preview
+```text
+tools/pdf-pipeline/
 ```
 
----
+该目录不是普通用户使用网站所必需的部分。
 
-## 使用指南
+## 开发
 
-### 导入题库
+```bash
+npm install
+npm run dev
+```
 
-1. 进入「**导入**」页面
-2. 点击「加载内置题库」即可使用开箱即用的题目
-3. 或上传自己的 JSON 文件（格式见下方）
+生产构建：
 
-<details>
-<summary>自定义题库 JSON 格式</summary>
+```bash
+npm run build
+```
+
+题库 JSON 质量审计：
+
+```bash
+python scripts/audit_construction_json.py --fail-on-error
+```
+
+## 自定义 JSON 格式
+
+导入页支持的核心 JSON 结构如下：
 
 ```json
 [
   {
-    "question": "请解释 JavaScript 中的事件循环机制",
-    "answer": "事件循环是 JS 处理异步操作的核心机制...",
-    "module": "JS基础",
+    "id": "road-single-001",
+    "module": "公路工程管理与实务 · 路基工程",
     "difficulty": 2,
-    "tags": ["异步", "事件循环", "宏任务", "微任务"]
+    "type": "single",
+    "question": "以下关于路基压实控制要点的说法，正确的是哪一项？",
+    "options": [
+      { "key": "A", "text": "压实度检测可完全替代含水量控制" },
+      { "key": "B", "text": "应结合土质、含水量和压实机械综合控制" }
+    ],
+    "correctAnswers": ["B"],
+    "answer": "## 正确答案\nB\n\n## 解析\n路基压实应结合土质、含水量、松铺厚度和压实机械综合控制。",
+    "tags": ["路基", "压实"],
+    "source": "自定义导入"
   }
 ]
 ```
 
-| 字段         | 类型        | 必填 | 说明                           |
-| ------------ | ----------- | ---- | ------------------------------ |
-| `question`   | string      | ✅   | 题目内容                       |
-| `answer`     | string      | ✅   | 参考答案（支持 Markdown）      |
-| `module`     | string      | ✅   | 所属模块                       |
-| `difficulty` | 1 \| 2 \| 3 | ✅   | 难度：1 初级 / 2 中级 / 3 高级 |
-| `tags`       | string[]    | —    | 标签（用于薄弱点聚合）         |
+字段说明：
 
-</details>
+- `id`：题目唯一 ID，建议保持稳定。
+- `module`：题目所属模块或目录。
+- `difficulty`：难度，取值为 `1 | 2 | 3`。
+- `type`：题型，取值为 `single | multiple | essay`。
+- `options`：选择题选项，解答题可省略。
+- `correctAnswers`：选择题答案键，例如 `["A"]` 或 `["A", "C"]`。
+- `answer`：答案与解析，推荐使用 Markdown。
+- `questionImages`：可选，题干图片路径数组，例如 `["/question-assets/example/q001-1.webp"]`。
+- `tags`：标签数组。
+- `source`：来源说明，可选。
 
-### 配置 AI 助手
+## 目录说明
 
-1. 点击右上角**齿轮图标**打开设置
-2. 切换到「**AI 助手**」tab
-3. 填入 API Key 和 Base URL，选择模型，保存
-4. 在任意题目详情页即可开始与 AI 对话
-
-> API Key 仅存储在本地浏览器，不会上传到任何服务器。
-
----
-
-## 发版
-
-项目内置发版脚本，一条命令完成构建 → 打 Tag → 推送 → 创建 GitHub Release：
-
-```bash
-# 使用 package.json 中的版本号发版
-bash scripts/release.sh
-
-# 指定版本号
-bash scripts/release.sh 1.0.0
-
-# 预览，不实际执行
-bash scripts/release.sh --dry-run
+```text
+public/questions/construction/
 ```
 
-发版前请确保已通过 `gh auth login` 登录 GitHub CLI。
+内置建工题库 JSON。网站加载题库时优先读取这里的静态 JSON 目录。
 
----
+```text
+public/question-assets/construction/
+```
+
+题目配图资源。页面只会在题目详情需要时加载对应图片，避免一次性加载过多资源。
+
+```text
+src/generated/constructionBank.ts
+```
+
+内置题库目录索引与分类映射。
+
+```text
+scripts/audit_construction_json.py
+scripts/repair_construction_json.py
+```
+
+JSON 题库审计与保守修复脚本，不依赖 PDF 构建。
+
+```text
+tools/pdf-pipeline/
+```
+
+可选的本地 PDF 转 JSON 离线工具。该目录仅供维护者处理自有授权资料，不建议普通用户使用，也不应提交 PDF 源文件。
+
+```text
+local-pdf-sources/
+```
+
+本机可选 PDF 源目录，已被 `.gitignore` 忽略，不应进入 GitHub 仓库。
 
 ## 技术栈
 
-| 类别     | 技术                              |
-| -------- | --------------------------------- |
-| 框架     | React 19 + TypeScript 5.9         |
-| 构建     | Vite 7 + Tailwind CSS v4          |
-| 路由     | React Router v7                   |
-| 存储     | IndexedDB（idb）+ localStorage    |
-| Markdown | react-markdown + rehype-highlight |
-| 代码规范 | Biome                             |
-| 部署     | Vercel                            |
+- React 19
+- TypeScript 5.9
+- Vite 7
+- IndexedDB
+- Tailwind CSS 4
+- react-markdown
 
----
+## 免责声明
 
-## 项目结构
-
-```
-src/
-├── components/
-│   ├── layout/       # Navbar、SettingsDrawer
-│   └── ui/           # 通用组件、AIPanel
-├── pages/            # 各页面（Dashboard、Practice、QuestionDetail 等）
-├── store/            # 状态管理（useStudyStore、useAIStore）
-├── hooks/            # useQuestions 等
-├── lib/              # IndexedDB 操作封装
-├── types/            # 全局类型定义
-└── data/             # 内置题库数据
-```
-
----
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request。
-
-提交代码时请遵循 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 规范：
-
-```
-feat: 新增功能描述
-fix: 修复问题描述
-perf: 性能优化描述
-docs: 文档更新描述
-```
-
----
-
-## License
-
-[MIT](LICENSE) © 2026 Dogxi
+本项目是学习和刷题工具，不是官方题库。题目、答案、解析和分类可能包含 OCR 错误、AI 清洗误差或资料来源差异。用于备考时，请结合教材、规范、官方通知和可信资料自行核对。

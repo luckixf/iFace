@@ -255,22 +255,22 @@ function EmptyChat({ onQuickAction }: { onQuickAction: (prompt: string) => void 
     {
       icon: '🎯',
       label: '分析考点',
-      prompt: '请分析这道题的核心考察点，以及面试官想通过这道题了解候选人哪些能力？',
+      prompt: '请分析这道题的核心考点、命题意图，以及最容易丢分的地方。',
     },
     {
       icon: '📝',
-      label: '答题结构',
-      prompt: '请给我一个清晰的答题框架和结构，让我在面试中能有条理地回答这道题。',
+      label: '作答框架',
+      prompt: '请给我一个清晰的作答框架和结构，让我能有条理地回答这道题。',
     },
     {
       icon: '📖',
       label: '讲解知识点',
-      prompt: '请帮我深入讲解这道题涉及的核心知识点，从原理到实践，让我真正理解而不只是背答案。',
+      prompt: '请帮我深入讲解这道题涉及的核心知识点，从原理到应用，让我真正理解而不只是背答案。',
     },
     {
       icon: '🎤',
-      label: '模拟面试',
-      prompt: '请模拟面试官的角色，对我进行关于这道题的追问式面试练习，一次只问一个问题。',
+      label: '案例追问',
+      prompt: '请围绕这道题继续追问我，一次只问一个问题，并尽量贴近二建建工考试案例题的问法。',
     },
   ]
 
@@ -302,10 +302,10 @@ function EmptyChat({ onQuickAction }: { onQuickAction: (prompt: string) => void 
       </div>
       <div style={{ textAlign: 'center' }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
-          AI 面试助手
+          AI 刷题助手
         </p>
         <p style={{ fontSize: 12, color: 'var(--text-3)', lineHeight: 1.5 }}>
-          帮你深度分析题目、优化答案、预测追问
+          帮你梳理考点、整理作答框架、提炼记忆抓手
         </p>
       </div>
 
@@ -544,6 +544,10 @@ interface AIPanelProps {
   headless?: boolean
 }
 
+function getAISessionId(questionId: string, answerVisible: boolean): string {
+  return answerVisible ? questionId : `${questionId}__prereveal`
+}
+
 export function AIPanel({
   question,
   answerVisible,
@@ -560,9 +564,9 @@ export function AIPanel({
     abortStream,
   } = useAIStore()
 
-  const questionId = question.id
-  const messages = getMessages(questionId)
-  const isStreaming = streaming && streamingQuestionId === questionId
+  const sessionId = getAISessionId(question.id, answerVisible)
+  const messages = getMessages(sessionId)
+  const isStreaming = streaming && streamingQuestionId === sessionId
 
   const [input, setInput] = useState('')
   const [streamingText, setStreamingText] = useState('')
@@ -594,7 +598,7 @@ export function AIPanel({
   useEffect(() => {
     if (userScrolledUp.current) return
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [])
+  }, [messages.length, streamingText])
 
   // When streaming ends, reset the flag so next message auto-scrolls
   useEffect(() => {
@@ -648,7 +652,7 @@ export function AIPanel({
       const { messages: ctxMessages, systemSuffix } = buildContextMessages()
 
       await sendMessage(
-        questionId,
+        sessionId,
         msg,
         ctxMessages,
         systemSuffix,
@@ -664,7 +668,7 @@ export function AIPanel({
         },
       )
     },
-    [input, isStreaming, questionId, buildContextMessages, sendMessage],
+    [input, isStreaming, sessionId, buildContextMessages, sendMessage],
   )
 
   const handleKeyDown = useCallback(
@@ -679,11 +683,11 @@ export function AIPanel({
 
   const handleClear = useCallback(() => {
     if (isStreaming) abortStream()
-    clearSession(questionId)
+    clearSession(sessionId)
     setError(null)
     setStreamingText('')
     setTimeout(() => inputRef.current?.focus(), 60)
-  }, [clearSession, abortStream, questionId, isStreaming])
+  }, [clearSession, abortStream, sessionId, isStreaming])
 
   const handleQuickAction = useCallback(
     (prompt: string) => {
@@ -757,10 +761,9 @@ export function AIPanel({
           >
             {messages.map((msg, idx) => {
               const isLastAssistant = idx === messages.length - 1 && msg.role === 'assistant'
-              const messageKey = `${msg.role}-${msg.content}`
               return (
                 <MessageBubble
-                  key={messageKey}
+                  key={`${idx}-${msg.role}`}
                   message={msg}
                   isStreaming={isStreaming && isLastAssistant && streamingText !== ''}
                   streamingText={isStreaming && isLastAssistant ? streamingText : undefined}

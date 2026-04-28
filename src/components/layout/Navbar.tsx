@@ -9,7 +9,6 @@ const navItems = [
   { path: '/practice', label: '练习' },
   { path: '/weak', label: '薄弱点' },
   { path: '/import', label: '导入' },
-  { path: '/prompt', label: '出题' },
 ]
 
 export function Navbar() {
@@ -88,7 +87,7 @@ export function Navbar() {
                 letterSpacing: '-0.01em',
               }}
             >
-              iFace
+              iFace 建工刷题
             </span>
           </Link>
 

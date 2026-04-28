@@ -1,78 +1,58 @@
-// Built-in modules across all built-in categories (used for icon/color mapping & default filter UI)
-export const BUILTIN_MODULES = [
-  // 前端
-  'JS基础',
-  'React',
-  '性能优化',
-  '网络',
-  'CSS',
-  'TypeScript',
-  '手写题',
-  '项目深挖',
-  // Golang
-  'Go基础',
-  '并发编程',
-  '内存与GC',
-  '工程化',
-  'Web开发',
-  // AI Agent
-  'LLM基础',
-  'Prompt工程',
-  'Agent架构',
-  'RAG与知识库',
-  '工具调用与工作流',
-  '评测与线上优化',
-] as const
+import {
+  GENERATED_BUILTIN_CATEGORIES,
+  GENERATED_BUILTIN_MODULE_BUCKET,
+  GENERATED_BUILTIN_MODULE_CATEGORY,
+  GENERATED_BUILTIN_MODULES,
+  GENERATED_BUILTIN_MODULE_SUBJECT,
+} from '@/generated/constructionBank'
 
-export type BuiltinModule = (typeof BUILTIN_MODULES)[number]
+export const BUILTIN_MODULES: readonly string[] = GENERATED_BUILTIN_MODULES
 
-/** Maps each built-in module to its display category label */
 export const BUILTIN_MODULE_CATEGORY: Record<string, string> = {
-  // 前端
-  JS基础: '前端',
-  React: '前端',
-  性能优化: '前端',
-  网络: '前端',
-  CSS: '前端',
-  TypeScript: '前端',
-  手写题: '前端',
-  项目深挖: '前端',
-  // Golang
-  Go基础: 'Go',
-  并发编程: 'Go',
-  内存与GC: 'Go',
-  工程化: 'Go',
-  Web开发: 'Go',
-  // AI Agent
-  LLM基础: 'AI Agent',
-  Prompt工程: 'AI Agent',
-  Agent架构: 'AI Agent',
-  RAG与知识库: 'AI Agent',
-  工具调用与工作流: 'AI Agent',
-  评测与线上优化: 'AI Agent',
+  ...GENERATED_BUILTIN_MODULE_CATEGORY,
 }
 
-// Module is now open — any string is valid, enabling custom topics like Golang, Java, etc.
+export const BUILTIN_MODULE_SUBJECT: Record<string, string> = {
+  ...GENERATED_BUILTIN_MODULE_SUBJECT,
+}
+
+export const BUILTIN_MODULE_BUCKET: Record<string, string> = {
+  ...GENERATED_BUILTIN_MODULE_BUCKET,
+}
+
+export const MODULE_LIST: string[] = [...GENERATED_BUILTIN_MODULES]
+
 export type Module = string
 
 export type Difficulty = 1 | 2 | 3
 
 export type StudyStatus = 'unlearned' | 'mastered' | 'review'
 
+export type QuestionType = 'single' | 'multiple' | 'essay'
+
+export interface QuestionOption {
+  key: string
+  text: string
+}
+
 export interface Question {
   id: string
   module: Module
   difficulty: Difficulty
+  type: QuestionType
   question: string
   answer: string
   tags: string[]
   source?: string
+  options?: QuestionOption[]
+  correctAnswers?: string[]
+  questionImages?: string[]
 }
 
 export interface StudyRecord {
   questionId: string
   status: StudyStatus
-  lastUpdated: number // timestamp
+  lastUpdated: number
   reviewCount: number
 }
 
@@ -92,13 +72,10 @@ export interface PracticeSession {
   currentIndex: number
 }
 
-// Static built-in list (for sidebar defaults when no custom modules are imported)
-export const MODULE_LIST: Module[] = [...BUILTIN_MODULES]
-
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = {
-  1: '初级',
-  2: '中级',
-  3: '高级',
+  1: '基础',
+  2: '综合',
+  3: '案例',
 }
 
 export const DIFFICULTY_COLORS: Record<Difficulty, string> = {
@@ -107,7 +84,6 @@ export const DIFFICULTY_COLORS: Record<Difficulty, string> = {
   3: 'text-rose-500 bg-rose-500/10 border-rose-500/20',
 }
 
-// Inline style versions — safe for dynamic rendering (no Tailwind scan needed)
 export const DIFFICULTY_STYLES: Record<
   Difficulty,
   { color: string; background: string; borderColor: string }
@@ -129,7 +105,6 @@ export const STATUS_COLORS: Record<StudyStatus, string> = {
   review: 'text-amber-500 bg-amber-500/10 border-amber-500/20',
 }
 
-// Inline style versions — safe for dynamic rendering
 export const STATUS_STYLES: Record<
   StudyStatus,
   { color: string; background: string; borderColor: string }
@@ -151,78 +126,52 @@ export const STATUS_STYLES: Record<
   },
 }
 
-export const MODULE_ICONS: Record<string, string> = {
-  JS基础: '⚡',
-  React: '⚛️',
-  性能优化: '🚀',
-  网络: '🌐',
-  CSS: '🎨',
-  TypeScript: '🔷',
-  手写题: '✍️',
-  项目深挖: '🔍',
-  LLM基础: '🧠',
-  Prompt工程: '🪄',
-  Agent架构: '🤖',
-  RAG与知识库: '📚',
-  工具调用与工作流: '🛠️',
-  评测与线上优化: '📈',
-  // Common custom modules
-  Golang: '🐹',
-  Java: '☕',
-  Python: '🐍',
-  Rust: '🦀',
-  'Node.js': '🟢',
-  数据库: '🗄️',
-  算法: '📐',
-  系统设计: '🏗️',
-  DevOps: '⚙️',
-  Android: '🤖',
-  iOS: '🍎',
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  single: '单选',
+  multiple: '多选',
+  essay: '解答',
 }
 
-// Fallback icon for any unknown module
+export const QUESTION_TYPE_STYLES: Record<
+  QuestionType,
+  { color: string; background: string; borderColor: string }
+> = {
+  single: {
+    color: '#2563eb',
+    background: 'rgba(37,99,235,0.1)',
+    borderColor: 'rgba(37,99,235,0.18)',
+  },
+  multiple: {
+    color: '#7c3aed',
+    background: 'rgba(124,58,237,0.1)',
+    borderColor: 'rgba(124,58,237,0.18)',
+  },
+  essay: {
+    color: '#dc2626',
+    background: 'rgba(220,38,38,0.1)',
+    borderColor: 'rgba(220,38,38,0.18)',
+  },
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+  章节精讲: '🧱',
+  历年真题: '🛣️',
+  模拟试卷: '📝',
+}
+
 export function getModuleIcon(module: string): string {
-  return MODULE_ICONS[module] ?? '📚'
+  return CATEGORY_ICONS[BUILTIN_MODULE_BUCKET[module] ?? ''] ?? '📚'
 }
 
-export const MODULE_COLORS: Record<string, string> = {
-  JS基础: 'from-yellow-400 to-orange-500',
-  React: 'from-cyan-400 to-blue-500',
-  性能优化: 'from-green-400 to-emerald-500',
-  网络: 'from-violet-400 to-purple-500',
-  CSS: 'from-pink-400 to-rose-500',
-  TypeScript: 'from-blue-400 to-indigo-500',
-  手写题: 'from-amber-400 to-yellow-500',
-  项目深挖: 'from-teal-400 to-cyan-500',
-  LLM基础: 'from-fuchsia-400 to-violet-500',
-  Prompt工程: 'from-pink-400 to-fuchsia-500',
-  Agent架构: 'from-sky-400 to-indigo-500',
-  RAG与知识库: 'from-emerald-400 to-teal-500',
-  工具调用与工作流: 'from-amber-400 to-orange-500',
-  评测与线上优化: 'from-rose-400 to-red-500',
-  Golang: 'from-sky-400 to-cyan-500',
-  Java: 'from-orange-400 to-red-500',
-  Python: 'from-blue-400 to-yellow-500',
-  Rust: 'from-orange-500 to-red-600',
-  'Node.js': 'from-green-400 to-lime-500',
-  数据库: 'from-indigo-400 to-blue-600',
-  算法: 'from-purple-400 to-fuchsia-500',
-  系统设计: 'from-slate-400 to-gray-600',
-  DevOps: 'from-teal-400 to-emerald-500',
-}
-
-// Stable hash-based color palette for unknown modules
 const _paletteColors = [
-  '#6366f1',
-  '#8b5cf6',
-  '#ec4899',
-  '#f59e0b',
-  '#10b981',
-  '#3b82f6',
-  '#14b8a6',
-  '#f97316',
-  '#84cc16',
-  '#06b6d4',
+  '#2563eb',
+  '#059669',
+  '#d97706',
+  '#7c3aed',
+  '#dc2626',
+  '#0891b2',
+  '#ea580c',
+  '#0f766e',
 ]
 
 export function getModuleColor(module: string): string {
@@ -232,3 +181,5 @@ export function getModuleColor(module: string): string {
   }
   return _paletteColors[hash % _paletteColors.length]
 }
+
+export const BUILTIN_CATEGORIES = GENERATED_BUILTIN_CATEGORIES

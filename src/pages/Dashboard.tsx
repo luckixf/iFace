@@ -259,6 +259,7 @@ function ModuleProgressBar({
   return (
     <Link
       to={`/questions?module=${encodeURIComponent(module)}`}
+      className="dashboard-module-progress"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -275,8 +276,9 @@ function ModuleProgressBar({
         ;(e.currentTarget as HTMLElement).style.background = 'transparent'
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="dashboard-module-progress-main" style={{ flex: 1, minWidth: 0 }}>
         <div
+          className="dashboard-module-progress-head"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -285,18 +287,19 @@ function ModuleProgressBar({
           }}
         >
           <span
+            className="dashboard-module-progress-label"
             style={{
               fontSize: 13,
               fontWeight: 500,
               color: 'var(--text)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              lineHeight: 1.4,
+              wordBreak: 'break-word',
             }}
           >
             {module}
           </span>
           <span
+            className="dashboard-module-progress-count"
             style={{
               fontSize: 11,
               color: 'var(--text-3)',
@@ -347,6 +350,7 @@ function ModuleProgressBar({
         </div>
       </div>
       <span
+        className="dashboard-module-progress-percent"
         style={{
           fontSize: 11,
           fontWeight: 600,
@@ -992,7 +996,7 @@ export default function Dashboard() {
             className="main-grid"
           >
             {/* Overall Progress */}
-            <div className="card animate-fade-in stagger-2" style={{ padding: 20 }}>
+            <div className="card animate-fade-in stagger-2 dashboard-progress-card" style={{ padding: 20 }}>
               <h2
                 style={{
                   fontSize: 13,
@@ -1005,6 +1009,7 @@ export default function Dashboard() {
               </h2>
 
               <div
+                className="dashboard-progress-body"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1013,39 +1018,45 @@ export default function Dashboard() {
                   marginBottom: 20,
                 }}
               >
-                <SegmentedRing
-                  mastered={counts.mastered}
-                  review={counts.review}
-                  total={totalQuestions}
-                  size={130}
-                  strokeWidth={10}
-                  label={
-                    <div style={{ textAlign: 'center' }}>
-                      <p
-                        style={{
-                          fontSize: 22,
-                          fontWeight: 700,
-                          color: 'var(--text)',
-                          lineHeight: 1,
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {masteredPercent}%
-                      </p>
-                      <p
-                        style={{
-                          fontSize: 11,
-                          color: 'var(--text-3)',
-                          marginTop: 4,
-                        }}
-                      >
-                        已掌握
-                      </p>
-                    </div>
-                  }
-                />
+                <div
+                  className="dashboard-progress-ring"
+                  style={{ display: 'flex', justifyContent: 'center' }}
+                >
+                  <SegmentedRing
+                    mastered={counts.mastered}
+                    review={counts.review}
+                    total={totalQuestions}
+                    size={130}
+                    strokeWidth={10}
+                    label={
+                      <div style={{ textAlign: 'center' }}>
+                        <p
+                          style={{
+                            fontSize: 22,
+                            fontWeight: 700,
+                            color: 'var(--text)',
+                            lineHeight: 1,
+                            fontVariantNumeric: 'tabular-nums',
+                          }}
+                        >
+                          {masteredPercent}%
+                        </p>
+                        <p
+                          style={{
+                            fontSize: 11,
+                            color: 'var(--text-3)',
+                            marginTop: 4,
+                          }}
+                        >
+                          已掌握
+                        </p>
+                      </div>
+                    }
+                  />
+                </div>
 
                 <div
+                  className="dashboard-progress-legend"
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -1109,6 +1120,7 @@ export default function Dashboard() {
               </div>
 
               <div
+                className="dashboard-progress-actions"
                 style={{
                   paddingTop: 16,
                   borderTop: '1px solid var(--border-subtle)',
@@ -1319,6 +1331,46 @@ export default function Dashboard() {
 					.daily-grid {
 						grid-template-columns: 1fr !important;
 					}
+					.dashboard-progress-card {
+						padding: 16px !important;
+					}
+					.dashboard-progress-body {
+						flex-direction: column !important;
+						align-items: stretch !important;
+						gap: 18px !important;
+					}
+					.dashboard-progress-ring {
+						justify-content: center !important;
+					}
+					.dashboard-progress-legend {
+						width: min(100%, 240px);
+						margin: 0 auto;
+					}
+					.dashboard-progress-actions {
+						flex-wrap: wrap;
+					}
+					.dashboard-module-progress {
+						align-items: flex-start !important;
+						gap: 10px !important;
+					}
+					.dashboard-module-progress-head {
+						align-items: flex-start !important;
+						gap: 6px !important;
+					}
+					.dashboard-module-progress-label {
+						display: -webkit-box;
+						-webkit-line-clamp: 2;
+						-webkit-box-orient: vertical;
+						overflow: hidden;
+					}
+					.dashboard-module-progress-count {
+						margin-left: 0 !important;
+					}
+					.dashboard-module-progress-percent {
+						min-width: auto !important;
+						margin-left: auto;
+						padding-top: 2px;
+					}
 					.page-container {
 						padding-left: 12px !important;
 						padding-right: 12px !important;
@@ -1331,6 +1383,24 @@ export default function Dashboard() {
 					}
 					.daily-grid {
 						grid-template-columns: 1fr !important;
+					}
+					.dashboard-progress-card {
+						padding: 14px !important;
+					}
+					.dashboard-progress-actions {
+						flex-direction: column;
+					}
+					.dashboard-module-progress {
+						flex-direction: column;
+						padding-left: 0 !important;
+						padding-right: 0 !important;
+					}
+					.dashboard-module-progress-head {
+						flex-direction: column;
+					}
+					.dashboard-module-progress-percent {
+						margin-left: 0;
+						padding-top: 0;
 					}
 				}
 			`}</style>

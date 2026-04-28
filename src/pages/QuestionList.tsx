@@ -2,14 +2,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { applyFilters, useQuestions } from '@/hooks/useQuestions'
+import { getCategoryMap, type CategoryMap } from '@/lib/db'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
-  BUILTIN_MODULE_CATEGORY,
+  BUILTIN_CATEGORIES,
+  BUILTIN_MODULE_BUCKET,
+  BUILTIN_MODULE_SUBJECT,
   BUILTIN_MODULES,
   DIFFICULTY_LABELS,
   DIFFICULTY_STYLES,
   type Difficulty,
   type Module,
+  QUESTION_TYPE_LABELS,
+  QUESTION_TYPE_STYLES,
+  type QuestionType,
   STATUS_LABELS,
   STATUS_STYLES,
   type StudyStatus,
@@ -136,19 +142,21 @@ function FilterPanel({
             </span>
           )}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {availableModules.map((mod) => {
             const active = selectedModules.includes(mod)
-            const categoryLabel = BUILTIN_MODULE_CATEGORY[mod] ?? null
+            const subjectLabel = BUILTIN_MODULE_SUBJECT[mod] ?? null
+            const bucketLabel = BUILTIN_MODULE_BUCKET[mod] ?? null
             const isCustom = !(BUILTIN_MODULES as readonly string[]).includes(mod)
             return (
               <button
                 type="button"
                 key={mod}
                 onClick={() => onModuleToggle(mod)}
+                className="questionlist-module-button"
                 style={{
                   display: 'flex',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: 8,
                   padding: '6px 10px',
                   borderRadius: 8,
@@ -175,44 +183,81 @@ function FilterPanel({
                   }
                 }}
               >
-                <span
+                <div
                   style={{
                     flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    gap: 5,
                   }}
                 >
-                  {mod}
-                </span>
-                {categoryLabel && (
                   <span
+                    className="questionlist-module-label"
                     style={{
-                      fontSize: 9,
-                      padding: '1px 4px',
-                      borderRadius: 3,
-                      background: active ? 'rgba(255,255,255,0.2)' : 'var(--surface-3)',
-                      color: active ? 'rgba(255,255,255,0.8)' : 'var(--text-3)',
-                      flexShrink: 0,
+                      width: '100%',
+                      lineHeight: 1.35,
+                      wordBreak: 'break-word',
                     }}
                   >
-                    {categoryLabel}
+                    {mod}
                   </span>
-                )}
-                {isCustom && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: '1px 4px',
-                      borderRadius: 3,
-                      background: active ? 'rgba(255,255,255,0.2)' : 'var(--surface-3)',
-                      color: active ? 'rgba(255,255,255,0.8)' : 'var(--text-3)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    自定义
-                  </span>
-                )}
+                  {(subjectLabel || bucketLabel || isCustom) && (
+                    <span
+                      className="questionlist-module-meta"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {subjectLabel && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            padding: '1px 4px',
+                            borderRadius: 3,
+                            background: active ? 'rgba(255,255,255,0.2)' : 'var(--surface-3)',
+                            color: active ? 'rgba(255,255,255,0.8)' : 'var(--text-3)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {subjectLabel}
+                        </span>
+                      )}
+                      {bucketLabel && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            padding: '1px 4px',
+                            borderRadius: 3,
+                            background: active ? 'rgba(255,255,255,0.2)' : 'var(--surface-3)',
+                            color: active ? 'rgba(255,255,255,0.8)' : 'var(--text-3)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {bucketLabel}
+                        </span>
+                      )}
+                      {isCustom && (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            padding: '1px 4px',
+                            borderRadius: 3,
+                            background: active ? 'rgba(255,255,255,0.2)' : 'var(--surface-3)',
+                            color: active ? 'rgba(255,255,255,0.8)' : 'var(--text-3)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          自定义
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
                 {active && (
                   <svg
                     width="12"
@@ -393,11 +438,569 @@ function FilterPanel({
 
 // ─── Question Card ────────────────────────────────────────────────────────────
 
+void FilterPanel
+
+interface DirectoryBucketGroup {
+  key: string
+  label: string
+  modules: Module[]
+}
+
+interface DirectorySubjectGroup {
+  key: string
+  label: string
+  modules: Module[]
+  buckets: DirectoryBucketGroup[]
+}
+
+interface DirectoryCustomGroup {
+  key: string
+  label: string
+  modules: Module[]
+}
+
+interface DirectoryFilterPanelProps {
+  selectedModules: Module[]
+  selectedDifficulties: Difficulty[]
+  selectedStatuses: StudyStatus[]
+  onModuleToggle: (module: Module) => void
+  onModuleGroupToggle: (modules: Module[]) => void
+  onDifficultyToggle: (difficulty: Difficulty) => void
+  onStatusToggle: (status: StudyStatus) => void
+  onClear: () => void
+  totalFiltered: number
+  totalAll: number
+  directorySubjects: DirectorySubjectGroup[]
+  customGroups: DirectoryCustomGroup[]
+  moduleQuestionCounts: Record<string, number>
+}
+
+function DirectoryFilterPanel({
+  selectedModules,
+  selectedDifficulties,
+  selectedStatuses,
+  onModuleToggle,
+  onModuleGroupToggle,
+  onDifficultyToggle,
+  onStatusToggle,
+  onClear,
+  totalFiltered,
+  totalAll,
+  directorySubjects,
+  customGroups,
+  moduleQuestionCounts,
+}: DirectoryFilterPanelProps) {
+  const hasFilters =
+    selectedModules.length > 0 || selectedDifficulties.length > 0 || selectedStatuses.length > 0
+  const selectedSet = useMemo(() => new Set(selectedModules), [selectedModules])
+
+  const countQuestions = useCallback(
+    (modules: Module[]) =>
+      modules.reduce((sum, module) => sum + (moduleQuestionCounts[module] ?? 0), 0),
+    [moduleQuestionCounts],
+  )
+
+  const renderGroupAction = useCallback(
+    (modules: Module[]) => {
+      const allSelected = modules.length > 0 && modules.every((module) => selectedSet.has(module))
+      const someSelected = modules.some((module) => selectedSet.has(module))
+
+      return (
+        <button
+          type="button"
+          onClick={() => onModuleGroupToggle(modules)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: 0,
+            border: 'none',
+            background: 'none',
+            cursor: 'pointer',
+            color: allSelected || someSelected ? 'var(--primary)' : 'var(--text-3)',
+            fontSize: 11,
+            fontWeight: 600,
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: 4,
+              border:
+                allSelected || someSelected ? '1px solid var(--primary)' : '1px solid var(--border)',
+              background: allSelected
+                ? 'var(--primary)'
+                : someSelected
+                  ? 'var(--primary-light)'
+                  : 'transparent',
+              color: allSelected ? 'white' : 'var(--primary)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {allSelected ? (
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : someSelected ? (
+              <svg
+                width="8"
+                height="8"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            ) : null}
+          </span>
+          <span>{allSelected ? '清空' : someSelected ? '补齐' : '全选'}</span>
+        </button>
+      )
+    },
+    [onModuleGroupToggle, selectedSet],
+  )
+
+  const renderModuleButton = useCallback(
+    (module: Module) => {
+      const active = selectedSet.has(module)
+      const questionCount = moduleQuestionCounts[module] ?? 0
+
+      return (
+        <button
+          type="button"
+          key={module}
+          onClick={() => onModuleToggle(module)}
+          className="questionlist-module-button"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            width: '100%',
+            padding: '8px 10px',
+            borderRadius: 10,
+            border: active
+              ? '1px solid rgba(var(--primary-rgb), 0.28)'
+              : '1px solid var(--border-subtle)',
+            background: active ? 'var(--primary-light)' : 'var(--surface)',
+            color: active ? 'var(--primary)' : 'var(--text-2)',
+            cursor: 'pointer',
+            textAlign: 'left',
+            transition: 'all 0.15s',
+          }}
+          onMouseEnter={(event) => {
+            if (!active) {
+              event.currentTarget.style.background = 'var(--surface-2)'
+              event.currentTarget.style.color = 'var(--text)'
+            }
+          }}
+          onMouseLeave={(event) => {
+            if (!active) {
+              event.currentTarget.style.background = 'var(--surface)'
+              event.currentTarget.style.color = 'var(--text-2)'
+            }
+          }}
+        >
+          <span
+            className="questionlist-module-label"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              lineHeight: 1.4,
+              wordBreak: 'break-word',
+            }}
+          >
+            {module}
+          </span>
+          <span
+            style={{
+              minWidth: 28,
+              padding: '2px 6px',
+              borderRadius: 999,
+              background: active ? 'rgba(var(--primary-rgb), 0.12)' : 'var(--surface-3)',
+              color: active ? 'var(--primary)' : 'var(--text-3)',
+              fontSize: 11,
+              fontWeight: 600,
+              textAlign: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {questionCount}
+          </span>
+        </button>
+      )
+    },
+    [moduleQuestionCounts, onModuleToggle, selectedSet],
+  )
+
+  const totalCustomModules = customGroups.reduce((sum, group) => sum + group.modules.length, 0)
+  const totalCustomQuestions = countQuestions(customGroups.flatMap((group) => group.modules))
+
+  return (
+    <aside
+      style={{
+        width: '100%',
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 20,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: 'var(--text-3)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+          }}
+        >
+          筛选
+        </span>
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={onClear}
+            style={{
+              fontSize: 12,
+              color: 'var(--primary)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            清空全部
+          </button>
+        )}
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--text-3)' }}>
+        显示 <span style={{ fontWeight: 600, color: 'var(--text)' }}>{totalFiltered}</span> /{' '}
+        {totalAll} 题
+      </div>
+
+      <div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: 10,
+          }}
+        >
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: 'var(--text-3)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}
+          >
+            目录浏览
+          </p>
+          {customGroups.length > 0 && (
+            <span
+              style={{
+                fontSize: 10,
+                padding: '2px 6px',
+                borderRadius: 999,
+                background: 'var(--primary-light)',
+                color: 'var(--primary)',
+                border: '1px solid rgba(var(--primary-rgb), 0.2)',
+              }}
+            >
+              含自定义
+            </span>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {directorySubjects.map((subject) => (
+            <section
+              key={subject.key}
+              style={{
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 14,
+                background: 'var(--surface)',
+                padding: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  justifyContent: 'space-between',
+                  gap: 10,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                    {subject.label}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                    {subject.modules.length} 个模块 · {countQuestions(subject.modules)} 题
+                  </p>
+                </div>
+                {renderGroupAction(subject.modules)}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {subject.buckets.map((bucket) => (
+                  <div
+                    key={bucket.key}
+                    style={{
+                      paddingTop: 10,
+                      borderTop: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
+                          {bucket.label}
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
+                          {bucket.modules.length} 个模块 · {countQuestions(bucket.modules)} 题
+                        </p>
+                      </div>
+                      {renderGroupAction(bucket.modules)}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {bucket.modules.map(renderModuleButton)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+
+          {customGroups.length > 0 && (
+            <section
+              style={{
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 14,
+                background: 'var(--surface)',
+                padding: 12,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>自定义题库</p>
+                <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                  {totalCustomModules} 个模块 · {totalCustomQuestions} 题
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {customGroups.map((group) => (
+                  <div
+                    key={group.key}
+                    style={{
+                      paddingTop: 10,
+                      borderTop: '1px solid var(--border-subtle)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 10,
+                      }}
+                    >
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
+                          {group.label}
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
+                          {group.modules.length} 个模块 · {countQuestions(group.modules)} 题
+                        </p>
+                      </div>
+                      {renderGroupAction(group.modules)}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {group.modules.map(renderModuleButton)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'var(--text-3)',
+            marginBottom: 6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
+          难度
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {([1, 2, 3] as Difficulty[]).map((difficulty) => {
+            const active = selectedDifficulties.includes(difficulty)
+            return (
+              <button
+                type="button"
+                key={difficulty}
+                onClick={() => onDifficultyToggle(difficulty)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  background: active ? 'var(--surface-2)' : 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = active
+                    ? 'var(--surface-2)'
+                    : 'transparent'
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    color: DIFFICULTY_STYLES[difficulty].color,
+                    background: DIFFICULTY_STYLES[difficulty].background,
+                    borderColor: DIFFICULTY_STYLES[difficulty].borderColor,
+                  }}
+                >
+                  {DIFFICULTY_LABELS[difficulty]}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'var(--text-3)',
+            marginBottom: 6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}
+        >
+          学习状态
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {(['unlearned', 'review', 'mastered'] as StudyStatus[]).map((status) => {
+            const active = selectedStatuses.includes(status)
+            return (
+              <button
+                type="button"
+                key={status}
+                onClick={() => onStatusToggle(status)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '5px 10px',
+                  borderRadius: 8,
+                  background: active ? 'var(--surface-2)' : 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.12s',
+                }}
+                onMouseEnter={(event) => {
+                  event.currentTarget.style.background = 'var(--surface-2)'
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.background = active
+                    ? 'var(--surface-2)'
+                    : 'transparent'
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    padding: '2px 8px',
+                    borderRadius: 6,
+                    border: '1px solid',
+                    color: STATUS_STYLES[status].color,
+                    background: STATUS_STYLES[status].background,
+                    borderColor: STATUS_STYLES[status].borderColor,
+                  }}
+                >
+                  {STATUS_LABELS[status]}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </aside>
+  )
+}
+
 interface QuestionCardProps {
   question: {
     id: string
     module: Module
     difficulty: Difficulty
+    type: QuestionType
     question: string
     tags: string[]
     source?: string
@@ -483,6 +1086,21 @@ function QuestionCard({ question: q, status, index }: QuestionCardProps) {
             }}
           >
             {DIFFICULTY_LABELS[q.difficulty]}
+          </span>
+
+          <span
+            style={{
+              fontSize: 11,
+              fontWeight: 500,
+              padding: '2px 7px',
+              borderRadius: 5,
+              border: '1px solid',
+              color: QUESTION_TYPE_STYLES[q.type].color,
+              background: QUESTION_TYPE_STYLES[q.type].background,
+              borderColor: QUESTION_TYPE_STYLES[q.type].borderColor,
+            }}
+          >
+            {QUESTION_TYPE_LABELS[q.type]}
           </span>
 
           {/* Status badge */}
@@ -623,9 +1241,9 @@ export default function QuestionList() {
 
   // ── Filter state (sync with URL) ──
   const initModules = useMemo(() => {
-    const m = searchParams.get('module')
-    return m ? [m as Module] : []
-  }, [searchParams.get]) // eslint-disable-line react-hooks/exhaustive-deps
+    const raw = searchParams.get('module')
+    return raw ? (raw.split(',').filter(Boolean) as Module[]) : []
+  }, [searchParams])
 
   // Derive sorted module list from actual questions (built-ins first, then custom alphabetically)
   const availableModules = useMemo<Module[]>(() => {
@@ -637,6 +1255,8 @@ export default function QuestionList() {
     return [...builtins, ...custom]
   }, [allQuestions])
 
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
+
   const [selectedModules, setSelectedModules] = useState<Module[]>(initModules)
   const [selectedDifficulties, setSelectedDifficulties] = useState<Difficulty[]>([])
   const [selectedStatuses, setSelectedStatuses] = useState<StudyStatus[]>([])
@@ -646,6 +1266,96 @@ export default function QuestionList() {
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
 
   const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    let active = true
+
+    getCategoryMap().then((map) => {
+      if (active) {
+        setCategoryMap(map)
+      }
+    })
+
+    return () => {
+      active = false
+    }
+  }, [allQuestions.length])
+
+  const moduleQuestionCounts = useMemo<Record<string, number>>(() => {
+    const counts: Record<string, number> = {}
+    for (const question of allQuestions) {
+      counts[question.module] = (counts[question.module] ?? 0) + 1
+    }
+    return counts
+  }, [allQuestions])
+
+  const directorySubjects = useMemo<DirectorySubjectGroup[]>(() => {
+    const activeBuiltinModules = new Set(
+      availableModules.filter((module) => (BUILTIN_MODULES as readonly string[]).includes(module)),
+    )
+    const subjects = new Map<string, DirectorySubjectGroup>()
+
+    for (const category of BUILTIN_CATEGORIES) {
+      const modules = category.modules.filter((module): module is Module =>
+        activeBuiltinModules.has(module),
+      )
+      if (modules.length === 0) continue
+
+      const existing = subjects.get(category.subject)
+      if (existing) {
+        existing.modules.push(...modules)
+        existing.buckets.push({
+          key: category.category,
+          label: category.bucket,
+          modules,
+        })
+        continue
+      }
+
+      subjects.set(category.subject, {
+        key: category.subjectSlug,
+        label: category.subject,
+        modules: [...modules],
+        buckets: [
+          {
+            key: category.category,
+            label: category.bucket,
+            modules,
+          },
+        ],
+      })
+    }
+
+    return [...subjects.values()]
+  }, [availableModules])
+
+  const customGroups = useMemo<DirectoryCustomGroup[]>(() => {
+    const builtinSet = new Set(BUILTIN_MODULES as readonly string[])
+    const activeCustomModules = availableModules.filter((module) => !builtinSet.has(module))
+    const activeCustomSet = new Set(activeCustomModules)
+
+    const groups = Object.values(categoryMap)
+      .filter((category) => !category.builtin)
+      .sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+      .map((category) => ({
+        key: category.name,
+        label: category.name,
+        modules: category.modules.filter((module): module is Module => activeCustomSet.has(module)),
+      }))
+      .filter((group) => group.modules.length > 0)
+
+    const assigned = new Set(groups.flatMap((group) => group.modules))
+    const uncategorized = activeCustomModules.filter((module) => !assigned.has(module))
+    if (uncategorized.length > 0) {
+      groups.push({
+        key: '__custom_other__',
+        label: '其他 / 自定义',
+        modules: uncategorized,
+      })
+    }
+
+    return groups
+  }, [availableModules, categoryMap])
 
   // ── Debounced search ──
   const [debouncedSearch, setDebouncedSearch] = useState(search)
@@ -657,12 +1367,12 @@ export default function QuestionList() {
   // ── Reset page on filter change ──
   useEffect(() => {
     setPage(1)
-  }, [])
+  }, [selectedModules, selectedDifficulties, selectedStatuses, debouncedSearch, sort])
 
   // ── Sync URL params ──
   useEffect(() => {
     const params: Record<string, string> = {}
-    if (selectedModules.length === 1) params.module = selectedModules[0]
+    if (selectedModules.length > 0) params.module = selectedModules.join(',')
     if (debouncedSearch) params.q = debouncedSearch
     setSearchParams(params, { replace: true })
   }, [selectedModules, debouncedSearch, setSearchParams])
@@ -686,6 +1396,21 @@ export default function QuestionList() {
   // ── Filter helpers ──
   const toggleModule = useCallback((m: Module) => {
     setSelectedModules((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))
+  }, [])
+
+  const toggleModuleGroup = useCallback((modules: Module[]) => {
+    setSelectedModules((prev) => {
+      const allSelected = modules.length > 0 && modules.every((module) => prev.includes(module))
+      if (allSelected) {
+        return prev.filter((module) => !modules.includes(module))
+      }
+
+      const next = new Set(prev)
+      for (const module of modules) {
+        next.add(module)
+      }
+      return [...next]
+    })
   }, [])
 
   const toggleDifficulty = useCallback((d: Difficulty) => {
@@ -765,7 +1490,7 @@ export default function QuestionList() {
     <div className="page-container">
       {/* ── Page header ── */}
       <div
-        className="animate-fade-in"
+        className="animate-fade-in questionlist-header"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -788,7 +1513,10 @@ export default function QuestionList() {
             共 {allQuestions.length} 道题
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div
+          className="questionlist-header-actions"
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+        >
           {/* Mobile filter toggle */}
           <button
             type="button"
@@ -1093,28 +1821,34 @@ export default function QuestionList() {
       )}
 
       {/* ── Main layout ── */}
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="questionlist-main-layout" style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         {/* ── Sidebar filter (desktop) ── */}
         <div
           style={{
             position: 'sticky',
             top: 'calc(var(--navbar-h) + 20px)',
-            width: 200,
+            width: 280,
             flexShrink: 0,
+            maxHeight: 'calc(100dvh - var(--navbar-h) - 32px)',
+            overflowY: 'auto',
+            paddingRight: 4,
           }}
           className="ql-sidebar"
         >
-          <FilterPanel
+          <DirectoryFilterPanel
             selectedModules={selectedModules}
             selectedDifficulties={selectedDifficulties}
             selectedStatuses={selectedStatuses}
             onModuleToggle={toggleModule}
+            onModuleGroupToggle={toggleModuleGroup}
             onDifficultyToggle={toggleDifficulty}
             onStatusToggle={toggleStatus}
             onClear={clearFilters}
             totalFiltered={filteredQuestions.length}
             totalAll={allQuestions.length}
-            availableModules={availableModules}
+            directorySubjects={directorySubjects}
+            customGroups={customGroups}
+            moduleQuestionCounts={moduleQuestionCounts}
           />
         </div>
 
@@ -1148,7 +1882,7 @@ export default function QuestionList() {
               className="animate-slide-up"
             >
               <div
-                className="glass"
+                className="glass questionlist-mobile-filter-sheet"
                 style={{
                   borderRadius: '18px 18px 0 0',
                   padding: 20,
@@ -1178,17 +1912,20 @@ export default function QuestionList() {
                     完成
                   </Button>
                 </div>
-                <FilterPanel
+                <DirectoryFilterPanel
                   selectedModules={selectedModules}
                   selectedDifficulties={selectedDifficulties}
                   selectedStatuses={selectedStatuses}
                   onModuleToggle={toggleModule}
+                  onModuleGroupToggle={toggleModuleGroup}
                   onDifficultyToggle={toggleDifficulty}
                   onStatusToggle={toggleStatus}
                   onClear={clearFilters}
                   totalFiltered={filteredQuestions.length}
                   totalAll={allQuestions.length}
-                  availableModules={availableModules}
+                  directorySubjects={directorySubjects}
+                  customGroups={customGroups}
+                  moduleQuestionCounts={moduleQuestionCounts}
                 />
               </div>
             </div>
@@ -1282,9 +2019,50 @@ export default function QuestionList() {
       </div>
 
       <style>{`
+				.questionlist-module-label {
+					display: -webkit-box;
+					-webkit-line-clamp: 2;
+					-webkit-box-orient: vertical;
+					overflow: hidden;
+				}
 				@media (max-width: 768px) {
 					.ql-sidebar { display: none !important; }
 					.mobile-filter-btn { display: flex !important; }
+					.questionlist-main-layout {
+						gap: 16px !important;
+					}
+					.questionlist-mobile-filter-sheet {
+						padding: 16px 14px 20px !important;
+						max-height: 85dvh !important;
+					}
+					.questionlist-module-label {
+						display: block !important;
+						-webkit-line-clamp: unset !important;
+						overflow: visible !important;
+					}
+				}
+				@media (max-width: 640px) {
+					.questionlist-header {
+						flex-direction: column;
+						align-items: flex-start !important;
+						gap: 12px;
+					}
+					.questionlist-header-actions {
+						width: 100%;
+						justify-content: space-between;
+					}
+					.questionlist-module-button {
+						padding-top: 8px !important;
+						padding-bottom: 8px !important;
+					}
+				}
+				@media (max-width: 480px) {
+					.questionlist-header-actions {
+						gap: 6px !important;
+					}
+					.questionlist-mobile-filter-sheet {
+						padding: 14px 12px 18px !important;
+					}
 				}
 			`}</style>
     </div>

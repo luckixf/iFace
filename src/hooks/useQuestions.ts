@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAllQuestions } from '@/lib/db'
-import { getDailyRecommendations, loadAllBuiltinModulesParallel } from '@/lib/questionLoader'
+import { getAllQuestions, getQuestionById as getStoredQuestionById } from '@/lib/db'
+import {
+  getBuiltinCatalogQuestions,
+  getBuiltinQuestionById,
+  getDailyRecommendations,
+  resetBuiltinQuestionCaches,
+} from '@/lib/questionLoader'
 import type { Difficulty, FilterState, Module, Question, StudyStatus } from '@/types'
 
 export type SortKey = 'default' | 'difficulty-asc' | 'difficulty-desc' | 'module'
@@ -33,6 +38,18 @@ let _loaded = false
 let _loading = false
 const _waiters: Array<() => void> = []
 
+function dedupeQuestions(questions: Question[]): Question[] {
+  const seen = new Set<string>()
+  return questions.filter((question) => {
+    if (seen.has(question.id)) {
+      return false
+    }
+
+    seen.add(question.id)
+    return true
+  })
+}
+
 async function ensureLoaded(): Promise<Question[]> {
   if (_loaded) return _allQuestions
 
@@ -43,49 +60,35 @@ async function ensureLoaded(): Promise<Question[]> {
   }
 
   _loading = true
+  try {
+    const [storedQuestions, builtinQuestions] = await Promise.all([
+      getAllQuestions(),
+      getBuiltinCatalogQuestions(),
+    ])
 
-  // Try to load from IndexedDB first
-  const cached = await getAllQuestions()
-  if (cached.length > 0) {
-    _allQuestions = cached
+    const dedupedBuiltinQuestions = dedupeQuestions(builtinQuestions)
+    const builtinIds = new Set(dedupedBuiltinQuestions.map((question) => question.id))
+    const customQuestions = dedupeQuestions(storedQuestions).filter(
+      (question) => !builtinIds.has(question.id),
+    )
+
+    _allQuestions = [...dedupedBuiltinQuestions, ...customQuestions]
     _loaded = true
+    return _allQuestions
+  } finally {
     _loading = false
     _waiters.forEach((fn) => {
       fn()
     })
     _waiters.length = 0
-
-    // Background sync: fetch any new built-in modules
-    loadAllBuiltinModulesParallel().then(async () => {
-      const updated = await getAllQuestions()
-      if (updated.length !== _allQuestions.length) {
-        _allQuestions = updated
-        _waiters.forEach((fn) => {
-          fn()
-        })
-      }
-    })
-
-    return _allQuestions
   }
-
-  // First run: fetch all built-in modules
-  await loadAllBuiltinModulesParallel()
-  _allQuestions = await getAllQuestions()
-  _loaded = true
-  _loading = false
-  _waiters.forEach((fn) => {
-    fn()
-  })
-  _waiters.length = 0
-
-  return _allQuestions
 }
 
 export function invalidateQuestionsCache() {
   _loaded = false
   _loading = false
   _allQuestions = []
+  resetBuiltinQuestionCaches()
 }
 
 // ─── Filter helper ────────────────────────────────────────────────────────────
@@ -263,7 +266,22 @@ export function useQuestion(id: string | undefined): {
     }
     setLoading(true)
     ensureLoaded()
-      .then((qs) => setQuestion(qs.find((q) => q.id === id)))
+      .then(async (questions) => {
+        const cached = questions.find((question) => question.id === id)
+        if (cached?.answer) {
+          setQuestion(cached)
+          return
+        }
+
+        const stored = await getStoredQuestionById(id)
+        if (stored) {
+          setQuestion(stored)
+          return
+        }
+
+        const builtin = await getBuiltinQuestionById(id)
+        setQuestion(builtin ?? cached)
+      })
       .finally(() => setLoading(false))
   }, [id])
 
