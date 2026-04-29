@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type Dispatch,
+  type SetStateAction,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { applyFilters, useQuestions } from '@/hooks/useQuestions'
@@ -497,6 +506,65 @@ function DirectoryFilterPanel({
   const hasFilters =
     selectedModules.length > 0 || selectedDifficulties.length > 0 || selectedStatuses.length > 0
   const selectedSet = useMemo(() => new Set(selectedModules), [selectedModules])
+  const [openSubjectKeys, setOpenSubjectKeys] = useState<Set<string>>(
+    () => new Set(directorySubjects.slice(0, 1).map((subject) => subject.key)),
+  )
+  const [openBucketKeys, setOpenBucketKeys] = useState<Set<string>>(() => new Set())
+  const [openCustomKeys, setOpenCustomKeys] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    if (selectedModules.length === 0) return
+
+    setOpenSubjectKeys((prev) => {
+      const next = new Set(prev)
+      for (const subject of directorySubjects) {
+        if (subject.modules.some((module) => selectedSet.has(module))) {
+          next.add(subject.key)
+        }
+      }
+      return next
+    })
+
+    setOpenBucketKeys((prev) => {
+      const next = new Set(prev)
+      for (const subject of directorySubjects) {
+        for (const bucket of subject.buckets) {
+          if (bucket.modules.some((module) => selectedSet.has(module))) {
+            next.add(bucket.key)
+          }
+        }
+      }
+      return next
+    })
+
+    setOpenCustomKeys((prev) => {
+      const next = new Set(prev)
+      for (const group of customGroups) {
+        if (group.modules.some((module) => selectedSet.has(module))) {
+          next.add(group.key)
+        }
+      }
+      return next
+    })
+  }, [customGroups, directorySubjects, selectedModules.length, selectedSet])
+
+  const toggleKey = useCallback(
+    (
+      setter: Dispatch<SetStateAction<Set<string>>>,
+      key: string,
+    ) => {
+      setter((prev) => {
+        const next = new Set(prev)
+        if (next.has(key)) {
+          next.delete(key)
+        } else {
+          next.add(key)
+        }
+        return next
+      })
+    },
+    [],
+  )
 
   const countQuestions = useCallback(
     (modules: Module[]) =>
@@ -764,17 +832,46 @@ function DirectoryFilterPanel({
                   gap: 10,
                 }}
               >
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                    {subject.label}
-                  </p>
-                  <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
-                    {subject.modules.length} 个模块 · {countQuestions(subject.modules)} 题
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => toggleKey(setOpenSubjectKeys, subject.key)}
+                  style={{
+                    minWidth: 0,
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 8,
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span
+                    style={{
+                      color: 'var(--text-3)',
+                      transform: openSubjectKeys.has(subject.key) ? 'rotate(90deg)' : 'rotate(0)',
+                      transition: 'transform 0.15s',
+                      lineHeight: 1.3,
+                      flexShrink: 0,
+                    }}
+                  >
+                    ▶
+                  </span>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                      {subject.label}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 4 }}>
+                      {subject.modules.length} 个模块 · {countQuestions(subject.modules)} 题
+                    </span>
+                  </span>
+                </button>
                 {renderGroupAction(subject.modules)}
               </div>
 
+              {openSubjectKeys.has(subject.key) && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {subject.buckets.map((bucket) => (
                   <div
@@ -785,32 +882,63 @@ function DirectoryFilterPanel({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 8,
-                    }}
-                  >
-                    <div
+                      }}
+                    >
+                      <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         gap: 10,
-                      }}
-                    >
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
-                          {bucket.label}
-                        </p>
-                        <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
-                          {bucket.modules.length} 个模块 · {countQuestions(bucket.modules)} 题
-                        </p>
-                      </div>
+                        }}
+                      >
+                      <button
+                        type="button"
+                        onClick={() => toggleKey(setOpenBucketKeys, bucket.key)}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 7,
+                          padding: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: 'var(--text-3)',
+                            transform: openBucketKeys.has(bucket.key) ? 'rotate(90deg)' : 'rotate(0)',
+                            transition: 'transform 0.15s',
+                            lineHeight: 1.3,
+                            flexShrink: 0,
+                          }}
+                        >
+                          ▶
+                        </span>
+                        <span>
+                          <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
+                            {bucket.label}
+                          </span>
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
+                            {bucket.modules.length} 个模块 · {countQuestions(bucket.modules)} 题
+                          </span>
+                        </span>
+                      </button>
                       {renderGroupAction(bucket.modules)}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {bucket.modules.map(renderModuleButton)}
-                    </div>
+                    {openBucketKeys.has(bucket.key) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {bucket.modules.map(renderModuleButton)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
+              )}
             </section>
           ))}
 
@@ -843,29 +971,59 @@ function DirectoryFilterPanel({
                       display: 'flex',
                       flexDirection: 'column',
                       gap: 8,
-                    }}
-                  >
-                    <div
+                      }}
+                    >
+                      <div
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         gap: 10,
-                      }}
-                    >
-                      <div>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
-                          {group.label}
-                        </p>
-                        <p style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
-                          {group.modules.length} 个模块 · {countQuestions(group.modules)} 题
-                        </p>
-                      </div>
+                        }}
+                      >
+                      <button
+                        type="button"
+                        onClick={() => toggleKey(setOpenCustomKeys, group.key)}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 7,
+                          padding: 0,
+                          border: 'none',
+                          background: 'transparent',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: 'var(--text-3)',
+                            transform: openCustomKeys.has(group.key) ? 'rotate(90deg)' : 'rotate(0)',
+                            transition: 'transform 0.15s',
+                            lineHeight: 1.3,
+                            flexShrink: 0,
+                          }}
+                        >
+                          ▶
+                        </span>
+                        <span>
+                          <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
+                            {group.label}
+                          </span>
+                          <span style={{ display: 'block', fontSize: 11, color: 'var(--text-3)', marginTop: 3 }}>
+                            {group.modules.length} 个模块 · {countQuestions(group.modules)} 题
+                          </span>
+                        </span>
+                      </button>
                       {renderGroupAction(group.modules)}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {group.modules.map(renderModuleButton)}
-                    </div>
+                    {openCustomKeys.has(group.key) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {group.modules.map(renderModuleButton)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1380,6 +1538,14 @@ export default function QuestionList() {
     return () => clearTimeout(t)
   }, [search])
 
+  const deferredVisibleQuestions = useDeferredValue(visibleQuestions)
+  const deferredSelectedModules = useDeferredValue(selectedModules)
+  const deferredSelectedDifficulties = useDeferredValue(selectedDifficulties)
+  const deferredSelectedStatuses = useDeferredValue(selectedStatuses)
+  const deferredSearch = useDeferredValue(debouncedSearch)
+  const deferredSort = useDeferredValue(sort)
+  const deferredRecords = useDeferredValue(records)
+
   // ── Reset page on filter change ──
   useEffect(() => {
     setPage(1)
@@ -1448,28 +1614,25 @@ export default function QuestionList() {
 
   // ── Filtered questions ──
   const filteredQuestions = useMemo(() => {
-    const recordMap = Object.fromEntries(
-      Object.entries(records).map(([k, v]) => [k, { status: v.status }]),
-    )
     return applyFilters(
-      visibleQuestions,
+      deferredVisibleQuestions,
       {
-        modules: selectedModules,
-        difficulties: selectedDifficulties,
-        statuses: selectedStatuses,
-        search: debouncedSearch,
+        modules: deferredSelectedModules,
+        difficulties: deferredSelectedDifficulties,
+        statuses: deferredSelectedStatuses,
+        search: deferredSearch,
       },
-      recordMap,
-      sort as any,
+      deferredRecords,
+      deferredSort as any,
     )
   }, [
-    visibleQuestions,
-    selectedModules,
-    selectedDifficulties,
-    selectedStatuses,
-    debouncedSearch,
-    sort,
-    records,
+    deferredVisibleQuestions,
+    deferredSelectedModules,
+    deferredSelectedDifficulties,
+    deferredSelectedStatuses,
+    deferredSearch,
+    deferredSort,
+    deferredRecords,
   ])
 
   // ── Paginated ──
@@ -1496,6 +1659,9 @@ export default function QuestionList() {
     selectedStatuses.length > 0 ||
     debouncedSearch.length > 0
   const allQuestionsHidden = allQuestions.length > 0 && visibleQuestions.length === 0
+  const selectedModuleChips =
+    selectedModules.length > 8 ? selectedModules.slice(0, 6) : selectedModules
+  const hiddenSelectedModuleCount = selectedModules.length - selectedModuleChips.length
 
   // Keep selectedModules valid when availableModules changes (e.g. after import)
   useEffect(() => {
@@ -1698,7 +1864,7 @@ export default function QuestionList() {
             marginBottom: 14,
           }}
         >
-          {selectedModules.map((m) => (
+          {selectedModuleChips.map((m) => (
             <button
               type="button"
               key={m}
@@ -1732,6 +1898,28 @@ export default function QuestionList() {
               </svg>
             </button>
           ))}
+          {hiddenSelectedModuleCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedModules([])}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 10px',
+                borderRadius: 99,
+                fontSize: 12,
+                fontWeight: 500,
+                background: 'var(--surface-3)',
+                color: 'var(--text-2)',
+                border: '1px solid var(--border)',
+                cursor: 'pointer',
+              }}
+            >
+              另 {hiddenSelectedModuleCount} 个模块
+              <span style={{ color: 'var(--text-3)' }}>清空</span>
+            </button>
+          )}
           {selectedDifficulties.map((d) => (
             <button
               type="button"

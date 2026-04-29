@@ -331,6 +331,7 @@ interface MyAnswerInputProps {
   answerVisible: boolean
   onOpenAIPanel: () => void
   isAiEnabled: boolean
+  onDraftChange?: (draft: string) => void
   /** When true the component is in "compact / inside answer card" mode */
   compact?: boolean
 }
@@ -342,6 +343,7 @@ function MyAnswerInput({
   answerVisible,
   onOpenAIPanel,
   isAiEnabled,
+  onDraftChange,
   compact = false,
 }: MyAnswerInputProps) {
   const { sendMessage, streaming, streamingQuestionId } = useAIStore()
@@ -364,7 +366,8 @@ function MyAnswerInput({
     setFeedback(null)
     setStreamingFeedback('')
     setError(null)
-  }, [questionId])
+    onDraftChange?.('')
+  }, [questionId, onDraftChange])
 
   // Auto-focus textarea on mount / question change
   useEffect(() => {
@@ -430,8 +433,9 @@ function MyAnswerInput({
     setStreamingFeedback('')
     setText('')
     setError(null)
+    onDraftChange?.('')
     setTimeout(() => textareaRef.current?.focus(), 60)
-  }, [])
+  }, [onDraftChange])
 
   const displayFeedback = feedback ?? (streamingFeedback || null)
 
@@ -600,7 +604,10 @@ function MyAnswerInput({
             <textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value)
+                onDraftChange?.(e.target.value)
+              }}
               onKeyDown={handleKeyDown}
               placeholder="用自己的话说说你对这道题的理解……不用完整，写核心思路就行"
               rows={3}
@@ -1198,6 +1205,7 @@ export default function QuestionDetail() {
   const [justMarked, setJustMarked] = useState<StudyStatus | null>(null)
   const [lastPressedKey, setLastPressedKey] = useState<'1' | '2' | '3' | null>(null)
   const [selectedAnswers, setSelectedAnswers] = useState<string[]>([])
+  const [selfAnswerDraft, setSelfAnswerDraft] = useState('')
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [celebrationStreak, setCelebrationStreak] = useState(0)
@@ -1241,12 +1249,19 @@ export default function QuestionDetail() {
     setJustMarked(null)
     setLastPressedKey(null)
     setSelectedAnswers([])
+    setSelfAnswerDraft('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
     // Clear per-question session review guard so the new question starts fresh
     return () => {
       if (id) clearSessionReview(id)
     }
   }, [id])
+
+  useEffect(() => {
+    if (studyMode === 'answer-alongside' || studyMode === 'memory-only') {
+      setAnswerVisible(true)
+    }
+  }, [studyMode, question?.id])
 
   const currentStatus = id ? getStatus(id) : 'unlearned'
   const record = id ? getRecord(id) : undefined
@@ -1259,6 +1274,12 @@ export default function QuestionDetail() {
     selectedAnswers.length > 0 &&
     selectedAnswers.length === correctAnswers.length &&
     selectedAnswers.every((key) => correctAnswerSet.has(key))
+  const hasChoiceOptions = Boolean(question?.options?.length)
+  const answerFirstReady =
+    studyMode !== 'answer-first' ||
+    (isChoiceQuestion && hasChoiceOptions
+      ? selectedAnswers.length > 0
+      : selfAnswerDraft.trim().length > 0)
 
   const handleOptionToggle = useCallback(
     (optionKey: string) => {
@@ -1313,10 +1334,11 @@ export default function QuestionDetail() {
   )
 
   const handleRevealAnswer = useCallback(() => {
+    if (!answerFirstReady) return
     setAnswerVisible(true)
     setJustMarked(null)
     setLastPressedKey(null)
-  }, [])
+  }, [answerFirstReady])
 
   const navigateTo = useCallback(
     (targetId: string | null | undefined) => {
@@ -1412,6 +1434,7 @@ export default function QuestionDetail() {
   const showAnswerInputAbove = studyMode === 'answer-first'
   const showAnswerInputInside = studyMode === 'answer-alongside'
   const hideAnswerInput = studyMode === 'memory-only'
+  const isMemoryMode = studyMode === 'memory-only'
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -1663,7 +1686,11 @@ export default function QuestionDetail() {
           {question.options && question.options.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <p style={{ fontSize: 12, color: 'var(--text-3)' }}>
-                {isMultipleChoice ? '可多选，先选答案再查看解析。' : '单选作答，先选答案再查看解析。'}
+                {isMemoryMode
+                  ? '背题模式：答案已展开，可直接对照选项和解析记忆。'
+                  : isMultipleChoice
+                    ? '可多选，先选答案再查看解析。'
+                    : '单选作答，先选答案再查看解析。'}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {question.options.map((option) => {
@@ -1740,6 +1767,7 @@ export default function QuestionDetail() {
             <button
               type="button"
               onClick={handleRevealAnswer}
+              disabled={!answerFirstReady}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1750,20 +1778,23 @@ export default function QuestionDetail() {
                 borderRadius: 12,
                 border: '2px dashed var(--border)',
                 background: 'transparent',
-                color: 'var(--text-2)',
-                cursor: 'pointer',
+                color: answerFirstReady ? 'var(--text-2)' : 'var(--text-3)',
+                cursor: answerFirstReady ? 'pointer' : 'not-allowed',
                 fontSize: 14,
                 fontWeight: 500,
                 transition: 'all 0.18s',
                 marginTop: 4,
+                opacity: answerFirstReady ? 1 : 0.72,
               }}
               onMouseEnter={(e) => {
+                if (!answerFirstReady) return
                 const el = e.currentTarget as HTMLElement
                 el.style.borderColor = 'rgba(var(--primary-rgb),0.5)'
                 el.style.color = 'var(--primary)'
                 el.style.background = 'var(--primary-light)'
               }}
               onMouseLeave={(e) => {
+                if (!answerFirstReady) return
                 const el = e.currentTarget as HTMLElement
                 el.style.borderColor = 'var(--border)'
                 el.style.color = 'var(--text-2)'
@@ -1786,8 +1817,12 @@ export default function QuestionDetail() {
               {isChoiceQuestion
                 ? selectedAnswers.length > 0
                   ? '提交并查看答案'
-                  : '直接查看答案'
-                : '查看参考答案'}
+                  : '先选择答案'
+                : isMemoryMode
+                  ? '查看并背诵答案'
+                  : selfAnswerDraft.trim().length > 0
+                    ? '提交作答并查看答案'
+                    : '先写下作答'}
               <Kbd>Space</Kbd>
             </button>
           )}
@@ -1803,6 +1838,7 @@ export default function QuestionDetail() {
               answerVisible={answerVisible}
               onOpenAIPanel={() => setAiDrawerOpen(true)}
               isAiEnabled={isAiEnabled}
+              onDraftChange={setSelfAnswerDraft}
             />
           </div>
         )}
@@ -1947,11 +1983,13 @@ export default function QuestionDetail() {
                 gap: 12,
               }}
             >
-              <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>你掌握了吗？</p>
+              <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-2)' }}>
+                {isMemoryMode ? '这题背会了吗？' : '你掌握了吗？'}
+              </p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <StatusButton
                   onClick={() => handleSetStatus('review', '1')}
-                  label="没掌握"
+                  label={isMemoryMode ? '没记住' : '没掌握'}
                   sublabel="加入待复习"
                   variant="danger"
                   kbd="1"
@@ -1965,8 +2003,8 @@ export default function QuestionDetail() {
                 />
                 <StatusButton
                   onClick={() => handleSetStatus('review', '2')}
-                  label="大概会"
-                  sublabel="还需巩固"
+                  label={isMemoryMode ? '有印象' : '大概会'}
+                  sublabel={isMemoryMode ? '再背一遍' : '还需巩固'}
                   variant="warning"
                   kbd="2"
                   active={justMarked === 'review' && lastPressedKey === '2'}
@@ -1974,7 +2012,7 @@ export default function QuestionDetail() {
                 />
                 <StatusButton
                   onClick={() => handleSetStatus('mastered', '3')}
-                  label="完全掌握"
+                  label={isMemoryMode ? '已背会' : '完全掌握'}
                   sublabel="不再推荐"
                   variant="success"
                   kbd="3"
@@ -2009,6 +2047,7 @@ export default function QuestionDetail() {
                 answerVisible={answerVisible}
                 onOpenAIPanel={() => setAiDrawerOpen(true)}
                 isAiEnabled={isAiEnabled}
+                onDraftChange={setSelfAnswerDraft}
                 compact
               />
             )}

@@ -1109,19 +1109,19 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                       value: 'answer-first' as StudyMode,
                       label: '先答后看',
                       emoji: '✍️',
-                      description: '先在作答区写下你的理解，再展开参考答案——最有助于记忆',
+                      description: '必须先选择或写下作答，才能展开参考答案，适合正常刷题',
                     },
                     {
                       value: 'answer-alongside' as StudyMode,
                       label: '边看边记',
                       emoji: '📖',
-                      description: '查看答案的同时写笔记，作答区显示在答案卡片内',
+                      description: '进入题目直接显示答案，同时在答案卡片里写笔记或让 AI 点评',
                     },
                     {
                       value: 'memory-only' as StudyMode,
-                      label: '纯记忆',
+                      label: '背题模式',
                       emoji: '🧠',
-                      description: '不显示作答区，直接翻答案，快速过一遍知识点',
+                      description: '进入题目自动展开答案，不作答，按“没记住 / 有印象 / 已背会”打标',
                     },
                   ] as { value: StudyMode; label: string; emoji: string; description: string }[]
                 ).map((opt) => {

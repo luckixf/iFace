@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { useQuestions } from '@/hooks/useQuestions'
@@ -255,6 +255,7 @@ function SessionPreview({
   modules,
   difficulty,
   statusFilter,
+  studyMode,
   onStart,
   onShuffle,
   isShuffled,
@@ -263,6 +264,7 @@ function SessionPreview({
   modules: Module[]
   difficulty: Difficulty | 'all'
   statusFilter: StudyStatus | 'all'
+  studyMode: 'answer-first' | 'answer-alongside' | 'memory-only'
   onStart: () => void
   onShuffle: () => void
   isShuffled: boolean
@@ -314,6 +316,15 @@ function SessionPreview({
           {
             label: '状态',
             value: statusFilter === 'all' ? '全部状态' : STATUS_LABELS[statusFilter as StudyStatus],
+          },
+          {
+            label: '模式',
+            value:
+              studyMode === 'memory-only'
+                ? '背题模式'
+                : studyMode === 'answer-alongside'
+                  ? '边看边记'
+                  : '先答后看',
           },
         ].map((row, i, arr) => (
           <div
@@ -442,7 +453,7 @@ function SessionPreview({
             </svg>
           }
         >
-          开始练习 {count} 道题
+          {studyMode === 'memory-only' ? '开始背题' : '开始练习'} {count} 道题
         </Button>
       )}
     </div>
@@ -496,7 +507,7 @@ export default function Practice() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { allQuestions, initializing } = useQuestions()
-  const { records, hiddenCategories } = useStudyStore()
+  const { records, hiddenCategories, studyMode } = useStudyStore()
 
   const [selectedModules, setSelectedModules] = useState<Module[]>([])
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all')
@@ -531,6 +542,11 @@ export default function Practice() {
     () => filterQuestionsByHiddenModules(allQuestions, hiddenModules),
     [allQuestions, hiddenModules],
   )
+  const deferredVisibleQuestions = useDeferredValue(visibleQuestions)
+  const deferredSelectedModules = useDeferredValue(selectedModules)
+  const deferredSelectedDifficulty = useDeferredValue(selectedDifficulty)
+  const deferredSelectedStatus = useDeferredValue(selectedStatus)
+  const deferredRecords = useDeferredValue(records)
 
   const hiddenQuestionCount = allQuestions.length - visibleQuestions.length
 
@@ -541,11 +557,19 @@ export default function Practice() {
 
   // ── Derived stats — for ALL active modules (not just builtin) ──
   const moduleStats = useMemo(() => {
-    return activeModules.map((mod) => {
-      const qs = visibleQuestions.filter((q) => q.module === mod)
-      const mastered = qs.filter((q) => records[q.id]?.status === 'mastered').length
-      return { module: mod, total: qs.length, mastered }
-    })
+    const stats = new Map<Module, { module: Module; total: number; mastered: number }>()
+    for (const mod of activeModules) {
+      stats.set(mod, { module: mod, total: 0, mastered: 0 })
+    }
+    for (const question of visibleQuestions) {
+      const stat = stats.get(question.module)
+      if (!stat) continue
+      stat.total += 1
+      if (records[question.id]?.status === 'mastered') {
+        stat.mastered += 1
+      }
+    }
+    return activeModules.map((mod) => stats.get(mod) ?? { module: mod, total: 0, mastered: 0 })
   }, [visibleQuestions, activeModules, records])
 
   // ── Ordered categories with their modules (only those with questions) ──
@@ -588,26 +612,32 @@ export default function Practice() {
 
   // ── Filtered question list ──
   const filteredQuestions = useMemo(() => {
-    let result = visibleQuestions
+    let result = deferredVisibleQuestions
 
-    if (selectedModules.length > 0) {
-      const set = new Set(selectedModules)
+    if (deferredSelectedModules.length > 0) {
+      const set = new Set(deferredSelectedModules)
       result = result.filter((q) => set.has(q.module))
     }
 
-    if (selectedDifficulty !== 'all') {
-      result = result.filter((q) => q.difficulty === selectedDifficulty)
+    if (deferredSelectedDifficulty !== 'all') {
+      result = result.filter((q) => q.difficulty === deferredSelectedDifficulty)
     }
 
-    if (selectedStatus !== 'all') {
+    if (deferredSelectedStatus !== 'all') {
       result = result.filter((q) => {
-        const status = records[q.id]?.status ?? 'unlearned'
-        return status === selectedStatus
+        const status = deferredRecords[q.id]?.status ?? 'unlearned'
+        return status === deferredSelectedStatus
       })
     }
 
     return result
-  }, [visibleQuestions, selectedModules, selectedDifficulty, selectedStatus, records])
+  }, [
+    deferredVisibleQuestions,
+    deferredSelectedModules,
+    deferredSelectedDifficulty,
+    deferredSelectedStatus,
+    deferredRecords,
+  ])
 
   const statusCounts = useMemo(() => {
     let pool = visibleQuestions
@@ -1126,6 +1156,7 @@ export default function Practice() {
               modules={selectedModules}
               difficulty={selectedDifficulty}
               statusFilter={selectedStatus}
+              studyMode={studyMode}
               onStart={handleStart}
               onShuffle={() => setIsShuffled((v) => !v)}
               isShuffled={isShuffled}
