@@ -370,10 +370,22 @@ export function isMDFile(file: File): boolean {
 interface DailyCache {
   date: string
   ids: string[]
+  count?: number
+  sourceKey?: string
 }
 
 function todayString(): string {
   return new Date().toISOString().slice(0, 10)
+}
+
+function makeDailySourceKey(allIds: string[]): string {
+  let hash = 0
+  for (const id of allIds) {
+    for (let i = 0; i < id.length; i++) {
+      hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+    }
+  }
+  return `${allIds.length}:${hash.toString(36)}`
 }
 
 export async function getDailyRecommendations(
@@ -381,10 +393,17 @@ export async function getDailyRecommendations(
   recordMap: Record<string, { status: string; lastUpdated: number }>,
   count = 10,
 ): Promise<string[]> {
+  const sourceKey = makeDailySourceKey(allIds)
   const cached = await getMeta<DailyCache>(META_KEYS.DAILY_RECS)
-  if (cached && cached.date === todayString()) {
+  if (
+    cached &&
+    cached.date === todayString() &&
+    cached.count === count &&
+    cached.sourceKey === sourceKey
+  ) {
     const valid = cached.ids.filter((id) => allIds.includes(id))
-    if (valid.length > 0) return valid
+    const targetCount = Math.min(count, allIds.length)
+    if (valid.length >= targetCount) return valid.slice(0, count)
   }
 
   const reviewIds = allIds
@@ -405,7 +424,7 @@ export async function getDailyRecommendations(
     }
   }
 
-  await setMeta(META_KEYS.DAILY_RECS, { date: todayString(), ids: result })
+  await setMeta(META_KEYS.DAILY_RECS, { date: todayString(), ids: result, count, sourceKey })
   return result
 }
 

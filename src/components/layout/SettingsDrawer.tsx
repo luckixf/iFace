@@ -397,17 +397,31 @@ function Toast({ message, type }: { message: string; type: 'success' | 'error' |
         borderRadius: 10,
         fontSize: 13,
         fontWeight: 500,
+        lineHeight: 1.45,
+        textAlign: 'center',
         boxShadow: 'var(--shadow-lg)',
         animation: 'slide-up 0.2s var(--ease-out) both',
-        whiteSpace: 'nowrap',
-        maxWidth: '90vw',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
+        whiteSpace: 'normal',
+        maxWidth: 'min(92vw, 520px)',
       }}
     >
       {message}
     </div>
   )
+}
+
+function isMobileDownloadContext(): boolean {
+  const userAgent = navigator.userAgent
+  const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches ?? false
+  return /Android|iPhone|iPad|iPod|Mobile|MQQBrowser|QQ\//i.test(userAgent) || coarsePointer
+}
+
+function getMobileDownloadHint(fileName: string): string {
+  const isQQ = /MQQBrowser|QQ\//i.test(navigator.userAgent)
+  if (isQQ) {
+    return `已开始导出 ${fileName}。QQ 内置浏览器通常不会提示保存位置，请在 QQ/浏览器下载管理、手机“文件管理”或 Download 文件夹里查找；找不到时建议用系统浏览器重新导出。`
+  }
+  return `已开始导出 ${fileName}。移动端浏览器可能不会弹出保存位置，请在浏览器下载管理、手机“文件管理”或 Download 文件夹里查找。`
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -432,7 +446,16 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     hiddenCategories,
     toggleCategoryVisibility,
   } = useStudyStore()
-  const { token, user, isLoggedIn, loading: authLoading, login, logout } = useAuthStore()
+  const {
+    token,
+    user,
+    isLoggedIn,
+    loading: authLoading,
+    githubOAuthConfigured,
+    githubOAuthSetupMessage,
+    login,
+    logout,
+  } = useAuthStore()
 
   const [tab, setTab] = useState<Tab>('ai')
   const [localConfig, setLocalConfig] = useState<AIConfig>({ ...config })
@@ -463,6 +486,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
 
   const importRef = useRef<HTMLInputElement>(null)
   const drawerRef = useRef<HTMLDivElement>(null)
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load category map when drawer opens (needed for visibility toggles)
   useEffect(() => {
@@ -470,6 +494,14 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       getCategoryMap().then(setCategoryMap)
     }
   }, [open])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current)
+      }
+    }
+  }, [])
 
   // Sync local config when store changes or drawer opens
   useEffect(() => {
@@ -542,9 +574,12 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
   }, [open])
 
   const showToast = useCallback(
-    (message: string, type: 'success' | 'error' | 'info' = 'success') => {
+    (message: string, type: 'success' | 'error' | 'info' = 'success', duration = 2800) => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current)
+      }
       setToast({ message, type })
-      setTimeout(() => setToast(null), 2800)
+      toastTimerRef.current = setTimeout(() => setToast(null), duration)
     },
     [],
   )
@@ -653,13 +688,19 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
+      const fileName = `iface-backup-${new Date().toISOString().slice(0, 10)}.json`
       a.href = url
-      a.download = `iface-backup-${new Date().toISOString().slice(0, 10)}.json`
+      a.download = fileName
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showToast(`已导出 ${data.questions.length} 道自定义题、${data.studyRecords.length} 条记录`)
+      const summary = `已导出 ${data.questions.length} 道自定义题、${data.studyRecords.length} 条记录`
+      showToast(
+        isMobileDownloadContext() ? `${summary}。${getMobileDownloadHint(fileName)}` : summary,
+        'success',
+        isMobileDownloadContext() ? 9000 : 2800,
+      )
     } catch {
       showToast('导出失败，请重试', 'error')
     } finally {
@@ -1326,7 +1367,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                   </span>
                 </div>
                 <p style={{ fontSize: 11, color: 'var(--text-3)', lineHeight: 1.6, margin: 0 }}>
-                  隐藏的题库不在首页展示统计和进度，但仍可在题库、练习页面访问。
+                  隐藏的题库会从首页、题库、专项练习和薄弱点列表中移除；已打开的题目详情仍可通过链接访问。
                 </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {(() => {
@@ -1813,9 +1854,34 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                         学习进度和自定义题库将备份到你的 GitHub 私人 Gist，多端同步，不怕丢失
                       </p>
                     </div>
+                    {!githubOAuthConfigured && (
+                      <div
+                        style={{
+                          padding: '9px 11px',
+                          borderRadius: 9,
+                          background: 'rgba(245,158,11,0.08)',
+                          border: '1px solid rgba(245,158,11,0.22)',
+                          color: 'var(--warning, #b45309)',
+                          fontSize: 12,
+                          lineHeight: 1.55,
+                          textAlign: 'left',
+                        }}
+                      >
+                        GitHub 云同步还没有配置 OAuth Client ID。请先在环境变量中设置
+                        `VITE_GITHUB_CLIENT_ID`，并在服务端设置对应的 GitHub OAuth 密钥。
+                      </div>
+                    )}
                     <button
                       type="button"
-                      onClick={login}
+                      onClick={() => {
+                        if (!githubOAuthConfigured) {
+                          showToast(githubOAuthSetupMessage, 'error')
+                          return
+                        }
+                        if (!login()) {
+                          showToast('GitHub 登录链接生成失败，请检查 OAuth 配置。', 'error')
+                        }
+                      }}
                       disabled={authLoading}
                       style={{
                         display: 'flex',
@@ -1834,7 +1900,11 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                       }}
                     >
                       <IconGitHub />
-                      {authLoading ? '跳转中…' : '用 GitHub 登录'}
+                      {authLoading
+                        ? '跳转中…'
+                        : githubOAuthConfigured
+                          ? '用 GitHub 登录'
+                          : '云同步未配置'}
                     </button>
                   </div>
 

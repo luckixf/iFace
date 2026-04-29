@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { useQuestions } from '@/hooks/useQuestions'
-import { type CategoryMap, getCategoryMap } from '@/lib/db'
+import { DEFAULT_CATEGORY_MAP, type CategoryMap, getCategoryMap } from '@/lib/db'
+import {
+  filterQuestionsByHiddenModules,
+  getHiddenModulesFromCategories,
+} from '@/lib/questionVisibility'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   DIFFICULTY_LABELS,
@@ -492,7 +496,7 @@ export default function Practice() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { allQuestions, initializing } = useQuestions()
-  const { records } = useStudyStore()
+  const { records, hiddenCategories } = useStudyStore()
 
   const [selectedModules, setSelectedModules] = useState<Module[]>([])
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all')
@@ -512,25 +516,37 @@ export default function Practice() {
   }, [searchParams, navigate])
 
   // ── Category map (for grouping modules) ──
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
 
   useEffect(() => {
     getCategoryMap().then(setCategoryMap)
-  }, []) // re-fetch when questions change (new imports)
+  }, [allQuestions.length])
+
+  const hiddenModules = useMemo(
+    () => getHiddenModulesFromCategories(categoryMap, hiddenCategories),
+    [categoryMap, hiddenCategories],
+  )
+
+  const visibleQuestions = useMemo(
+    () => filterQuestionsByHiddenModules(allQuestions, hiddenModules),
+    [allQuestions, hiddenModules],
+  )
+
+  const hiddenQuestionCount = allQuestions.length - visibleQuestions.length
 
   // ── All unique modules that actually have questions ──
   const activeModules = useMemo(() => {
-    return [...new Set(allQuestions.map((q) => q.module))]
-  }, [allQuestions])
+    return [...new Set(visibleQuestions.map((q) => q.module))]
+  }, [visibleQuestions])
 
   // ── Derived stats — for ALL active modules (not just builtin) ──
   const moduleStats = useMemo(() => {
     return activeModules.map((mod) => {
-      const qs = allQuestions.filter((q) => q.module === mod)
+      const qs = visibleQuestions.filter((q) => q.module === mod)
       const mastered = qs.filter((q) => records[q.id]?.status === 'mastered').length
       return { module: mod, total: qs.length, mastered }
     })
-  }, [allQuestions, activeModules, records])
+  }, [visibleQuestions, activeModules, records])
 
   // ── Ordered categories with their modules (only those with questions) ──
   const categoriesWithModules = useMemo(() => {
@@ -561,18 +577,18 @@ export default function Practice() {
 
   const difficultyStats = useMemo(() => {
     const base = { 1: 0, 2: 0, 3: 0 }
-    let filtered = allQuestions
+    let filtered = visibleQuestions
     if (selectedModules.length > 0) {
       const set = new Set(selectedModules)
       filtered = filtered.filter((q) => set.has(q.module))
     }
     for (const q of filtered) base[q.difficulty]++
     return base
-  }, [allQuestions, selectedModules])
+  }, [visibleQuestions, selectedModules])
 
   // ── Filtered question list ──
   const filteredQuestions = useMemo(() => {
-    let result = allQuestions
+    let result = visibleQuestions
 
     if (selectedModules.length > 0) {
       const set = new Set(selectedModules)
@@ -591,10 +607,10 @@ export default function Practice() {
     }
 
     return result
-  }, [allQuestions, selectedModules, selectedDifficulty, selectedStatus, records])
+  }, [visibleQuestions, selectedModules, selectedDifficulty, selectedStatus, records])
 
   const statusCounts = useMemo(() => {
-    let pool = allQuestions
+    let pool = visibleQuestions
     if (selectedModules.length > 0) {
       const set = new Set(selectedModules)
       pool = pool.filter((q) => set.has(q.module))
@@ -608,7 +624,7 @@ export default function Practice() {
       counts[s]++
     }
     return counts
-  }, [allQuestions, selectedModules, selectedDifficulty, records])
+  }, [visibleQuestions, selectedModules, selectedDifficulty, records])
 
   // ── Handlers ──
   const toggleModule = useCallback((mod: Module) => {
@@ -652,6 +668,13 @@ export default function Practice() {
     navigate(`/questions/${firstId}?ids=${ids.join(',')}`)
   }, [filteredQuestions, isShuffled, navigate])
 
+  useEffect(() => {
+    setSelectedModules((prev) => {
+      const next = prev.filter((module) => activeModules.includes(module))
+      return next.length === prev.length ? prev : next
+    })
+  }, [activeModules])
+
   // ── Loading ──
   if (initializing) {
     return (
@@ -694,7 +717,8 @@ export default function Practice() {
     )
   }
 
-  const noQuestions = allQuestions.length === 0
+  const noQuestions = visibleQuestions.length === 0
+  const allQuestionsHidden = allQuestions.length > 0 && visibleQuestions.length === 0
 
   return (
     <div className="page-container">
@@ -713,18 +737,25 @@ export default function Practice() {
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-3)' }}>
           自由组合模块、难度和状态，开启专注刷题模式
+          {hiddenQuestionCount > 0 && ` · 已按偏好隐藏 ${hiddenQuestionCount} 道`}
         </p>
       </div>
 
       {noQuestions ? (
         <div className="card" style={{ padding: '80px 20px' }}>
           <EmptyState
-            title="题库为空"
-            description="请先前往「导入题目」页面加载题库"
+            title={allQuestionsHidden ? '题库已全部隐藏' : '题库为空'}
+            description={
+              allQuestionsHidden
+                ? '请在「设置 → 刷题偏好 → 题库展示」中打开至少一个题库'
+                : '请先前往「导入题目」页面加载题库'
+            }
             action={
-              <Button variant="primary" onClick={() => navigate('/import')}>
-                前往导入
-              </Button>
+              allQuestionsHidden ? undefined : (
+                <Button variant="primary" onClick={() => navigate('/import')}>
+                  前往导入
+                </Button>
+              )
             }
           />
         </div>
@@ -1035,8 +1066,8 @@ export default function Practice() {
                   selected={selectedDifficulty === 'all'}
                   count={
                     selectedModules.length > 0
-                      ? allQuestions.filter((q) => selectedModules.includes(q.module)).length
-                      : allQuestions.length
+                      ? visibleQuestions.filter((q) => selectedModules.includes(q.module)).length
+                      : visibleQuestions.length
                   }
                   onClick={() => setSelectedDifficulty('all')}
                 />

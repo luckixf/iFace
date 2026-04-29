@@ -59,6 +59,27 @@ npm run build
 python scripts/audit_construction_json.py --fail-on-error
 ```
 
+## GitHub 云同步配置
+
+云同步使用 GitHub OAuth 登录，并把学习进度与自定义题库备份到你的私有 Gist。这个功能需要自行配置 GitHub OAuth App；如果不配置，网站仍可正常本地刷题，只是云同步按钮会显示“未配置”。
+
+创建 GitHub OAuth App：
+
+- 入口：`https://github.com/settings/developers`
+- Homepage URL：你的部署地址，例如 `https://your-app.vercel.app`
+- Authorization callback URL：`https://your-app.vercel.app/api/auth`
+
+Vercel 环境变量：
+
+```text
+GITHUB_CLIENT_ID=your_github_oauth_app_client_id
+GITHUB_CLIENT_SECRET=your_github_oauth_app_client_secret
+APP_ORIGIN=https://your-app.vercel.app
+VITE_GITHUB_CLIENT_ID=your_github_oauth_app_client_id
+```
+
+本地开发时可以复制 `.env.example` 为 `.env`，然后填写同一个 `VITE_GITHUB_CLIENT_ID`。如果修改了 `VITE_` 开头的环境变量，需要重启 `npm run dev` 或重新构建。
+
 ## 自定义 JSON 格式
 
 导入页支持的核心 JSON 结构如下：

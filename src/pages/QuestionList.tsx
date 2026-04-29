@@ -2,7 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { applyFilters, useQuestions } from '@/hooks/useQuestions'
-import { getCategoryMap, type CategoryMap } from '@/lib/db'
+import { DEFAULT_CATEGORY_MAP, getCategoryMap, type CategoryMap } from '@/lib/db'
+import {
+  filterQuestionsByHiddenModules,
+  getHiddenModulesFromCategories,
+} from '@/lib/questionVisibility'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   BUILTIN_CATEGORIES,
@@ -1237,7 +1241,7 @@ const PAGE_SIZE = 30
 export default function QuestionList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { allQuestions, initializing } = useQuestions()
-  const { records, getStatus } = useStudyStore()
+  const { records, getStatus, hiddenCategories } = useStudyStore()
 
   // ── Filter state (sync with URL) ──
   const initModules = useMemo(() => {
@@ -1245,17 +1249,7 @@ export default function QuestionList() {
     return raw ? (raw.split(',').filter(Boolean) as Module[]) : []
   }, [searchParams])
 
-  // Derive sorted module list from actual questions (built-ins first, then custom alphabetically)
-  const availableModules = useMemo<Module[]>(() => {
-    const moduleSet = new Set(allQuestions.map((q) => q.module))
-    const builtins = (BUILTIN_MODULES as readonly string[]).filter((m) => moduleSet.has(m))
-    const custom = [...moduleSet]
-      .filter((m) => !(BUILTIN_MODULES as readonly string[]).includes(m))
-      .sort((a, b) => a.localeCompare(b))
-    return [...builtins, ...custom]
-  }, [allQuestions])
-
-  const [categoryMap, setCategoryMap] = useState<CategoryMap>({})
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
 
   const [selectedModules, setSelectedModules] = useState<Module[]>(initModules)
   const [selectedDifficulties, setSelectedDifficulties] = useState<Difficulty[]>([])
@@ -1281,13 +1275,35 @@ export default function QuestionList() {
     }
   }, [allQuestions.length])
 
+  const hiddenModules = useMemo(
+    () => getHiddenModulesFromCategories(categoryMap, hiddenCategories),
+    [categoryMap, hiddenCategories],
+  )
+
+  const visibleQuestions = useMemo(
+    () => filterQuestionsByHiddenModules(allQuestions, hiddenModules),
+    [allQuestions, hiddenModules],
+  )
+
+  const hiddenQuestionCount = allQuestions.length - visibleQuestions.length
+
+  // Derive sorted module list from visible questions (built-ins first, then custom alphabetically)
+  const availableModules = useMemo<Module[]>(() => {
+    const moduleSet = new Set(visibleQuestions.map((q) => q.module))
+    const builtins = (BUILTIN_MODULES as readonly string[]).filter((m) => moduleSet.has(m))
+    const custom = [...moduleSet]
+      .filter((m) => !(BUILTIN_MODULES as readonly string[]).includes(m))
+      .sort((a, b) => a.localeCompare(b))
+    return [...builtins, ...custom]
+  }, [visibleQuestions])
+
   const moduleQuestionCounts = useMemo<Record<string, number>>(() => {
     const counts: Record<string, number> = {}
-    for (const question of allQuestions) {
+    for (const question of visibleQuestions) {
       counts[question.module] = (counts[question.module] ?? 0) + 1
     }
     return counts
-  }, [allQuestions])
+  }, [visibleQuestions])
 
   const directorySubjects = useMemo<DirectorySubjectGroup[]>(() => {
     const activeBuiltinModules = new Set(
@@ -1436,7 +1452,7 @@ export default function QuestionList() {
       Object.entries(records).map(([k, v]) => [k, { status: v.status }]),
     )
     return applyFilters(
-      allQuestions,
+      visibleQuestions,
       {
         modules: selectedModules,
         difficulties: selectedDifficulties,
@@ -1447,7 +1463,7 @@ export default function QuestionList() {
       sort as any,
     )
   }, [
-    allQuestions,
+    visibleQuestions,
     selectedModules,
     selectedDifficulties,
     selectedStatuses,
@@ -1479,10 +1495,10 @@ export default function QuestionList() {
     selectedDifficulties.length > 0 ||
     selectedStatuses.length > 0 ||
     debouncedSearch.length > 0
+  const allQuestionsHidden = allQuestions.length > 0 && visibleQuestions.length === 0
 
   // Keep selectedModules valid when availableModules changes (e.g. after import)
   useEffect(() => {
-    if (availableModules.length === 0) return
     setSelectedModules((prev) => prev.filter((m) => availableModules.includes(m)))
   }, [availableModules])
 
@@ -1510,7 +1526,8 @@ export default function QuestionList() {
             题库
           </h1>
           <p style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
-            共 {allQuestions.length} 道题
+            共 {visibleQuestions.length} 道题
+            {hiddenQuestionCount > 0 && ` · 已按偏好隐藏 ${hiddenQuestionCount} 道`}
           </p>
         </div>
         <div
@@ -1845,7 +1862,7 @@ export default function QuestionList() {
             onStatusToggle={toggleStatus}
             onClear={clearFilters}
             totalFiltered={filteredQuestions.length}
-            totalAll={allQuestions.length}
+            totalAll={visibleQuestions.length}
             directorySubjects={directorySubjects}
             customGroups={customGroups}
             moduleQuestionCounts={moduleQuestionCounts}
@@ -1922,7 +1939,7 @@ export default function QuestionList() {
                   onStatusToggle={toggleStatus}
                   onClear={clearFilters}
                   totalFiltered={filteredQuestions.length}
-                  totalAll={allQuestions.length}
+                  totalAll={visibleQuestions.length}
                   directorySubjects={directorySubjects}
                   customGroups={customGroups}
                   moduleQuestionCounts={moduleQuestionCounts}
@@ -1939,12 +1956,18 @@ export default function QuestionList() {
           ) : filteredQuestions.length === 0 ? (
             <div className="card">
               <EmptyState
-                title={hasFilters ? '没有匹配的题目' : '题库为空'}
+                title={
+                  allQuestionsHidden ? '题库已全部隐藏' : hasFilters ? '没有匹配的题目' : '题库为空'
+                }
                 description={
-                  hasFilters ? '试试调整筛选条件或清除搜索词' : '请前往「导入题目」页面加载题库'
+                  allQuestionsHidden
+                    ? '请在「设置 → 刷题偏好 → 题库展示」中打开至少一个题库'
+                    : hasFilters
+                      ? '试试调整筛选条件或清除搜索词'
+                      : '请前往「导入题目」页面加载题库'
                 }
                 action={
-                  hasFilters ? (
+                  allQuestionsHidden ? undefined : hasFilters ? (
                     <Button variant="secondary" size="sm" onClick={clearFilters}>
                       清除筛选
                     </Button>

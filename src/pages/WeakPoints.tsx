@@ -1,7 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, EmptyState, Skeleton } from '@/components/ui'
 import { useQuestions } from '@/hooks/useQuestions'
+import { DEFAULT_CATEGORY_MAP, getCategoryMap, type CategoryMap } from '@/lib/db'
+import {
+  filterQuestionsByHiddenModules,
+  getHiddenModulesFromCategories,
+} from '@/lib/questionVisibility'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   DIFFICULTY_COLORS,
@@ -448,18 +453,33 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 
 export default function WeakPoints() {
   const { allQuestions, initializing } = useQuestions()
-  const { records, setStatus } = useStudyStore()
+  const { records, setStatus, hiddenCategories } = useStudyStore()
 
   const [selectedModule, setSelectedModule] = useState<Module | null>(null)
   const [sortMode, setSortMode] = useState<SortMode>('oldest')
   const [clearing, setClearing] = useState<string | null>(null)
+  const [categoryMap, setCategoryMap] = useState<CategoryMap>({ ...DEFAULT_CATEGORY_MAP })
+
+  useEffect(() => {
+    getCategoryMap().then(setCategoryMap)
+  }, [allQuestions.length])
+
+  const hiddenModules = useMemo(
+    () => getHiddenModulesFromCategories(categoryMap, hiddenCategories),
+    [categoryMap, hiddenCategories],
+  )
+
+  const visibleQuestions = useMemo(
+    () => filterQuestionsByHiddenModules(allQuestions, hiddenModules),
+    [allQuestions, hiddenModules],
+  )
 
   const weakRecords = useMemo(() => {
     return Object.values(records).filter((r) => r.status === 'review')
   }, [records])
 
   const weakItems = useMemo(() => {
-    const questionMap = new Map(allQuestions.map((q) => [q.id, q]))
+    const questionMap = new Map(visibleQuestions.map((q) => [q.id, q]))
     return weakRecords
       .map((r) => {
         const q = questionMap.get(r.questionId)
@@ -470,7 +490,13 @@ export default function WeakPoints() {
       record: (typeof weakRecords)[0]
       question: (typeof allQuestions)[0]
     }[]
-  }, [weakRecords, allQuestions])
+  }, [weakRecords, visibleQuestions])
+
+  useEffect(() => {
+    if (selectedModule && hiddenModules.has(selectedModule)) {
+      setSelectedModule(null)
+    }
+  }, [hiddenModules, selectedModule])
 
   const weakByModule = useMemo(() => {
     const counts = {} as Record<Module, number>

@@ -16,6 +16,11 @@ export interface AuthState {
   initialized: boolean
 }
 
+const GITHUB_CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? '').trim()
+export const githubOAuthConfigured = Boolean(GITHUB_CLIENT_ID)
+export const githubOAuthSetupMessage =
+  'GitHub 云同步未配置：请设置 VITE_GITHUB_CLIENT_ID，并在服务端设置 GITHUB_CLIENT_ID、GITHUB_CLIENT_SECRET 和 APP_ORIGIN。'
+
 type AuthAction =
   | { type: 'INIT_START' }
   | { type: 'SET_TOKEN'; token: string }
@@ -94,10 +99,9 @@ async function fetchGitHubUser(token: string): Promise<GitHubUser> {
  * Build the GitHub OAuth authorization URL.
  * Scopes: only `gist` — the minimum required for creating/reading private gists.
  */
-export function buildGitHubOAuthUrl(): string {
-  const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID
-  if (!clientId) {
-    throw new Error('VITE_GITHUB_CLIENT_ID is not set')
+export function buildGitHubOAuthUrl(): string | null {
+  if (!GITHUB_CLIENT_ID) {
+    return null
   }
   // Random state to protect against CSRF
   const state = Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -106,7 +110,7 @@ export function buildGitHubOAuthUrl(): string {
   } catch {}
 
   const params = new URLSearchParams({
-    client_id: clientId,
+    client_id: GITHUB_CLIENT_ID,
     scope: 'gist',
     state,
   })
@@ -224,10 +228,21 @@ export function useAuthStore() {
   // ── Actions ──────────────────────────────────────────────────────────────────
 
   const login = useCallback(() => {
+    if (!githubOAuthConfigured) {
+      return false
+    }
+
     try {
-      window.location.href = buildGitHubOAuthUrl()
+      const oauthUrl = buildGitHubOAuthUrl()
+      if (!oauthUrl) {
+        return false
+      }
+
+      window.location.href = oauthUrl
+      return true
     } catch (err) {
       console.error('[auth] Failed to build OAuth URL:', err)
+      return false
     }
   }, [])
 
@@ -263,6 +278,8 @@ export function useAuthStore() {
     loading: state.loading,
     initialized: state.initialized,
     isLoggedIn: !!state.token && !!state.user,
+    githubOAuthConfigured,
+    githubOAuthSetupMessage,
     login,
     logout,
     setToken,

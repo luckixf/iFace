@@ -162,6 +162,7 @@ type Action =
       studyMode: StudyMode
       streak: StreakData
       dailyGoal: number
+      hiddenCategories: string[]
     }
   | { type: 'SET_RECORD'; record: StudyRecord }
   | { type: 'DELETE_RECORD'; questionId: string }
@@ -183,6 +184,7 @@ function reducer(state: StoreState, action: Action): StoreState {
         studyMode: action.studyMode,
         streak: action.streak,
         dailyGoal: action.dailyGoal,
+        hiddenCategories: new Set(action.hiddenCategories),
         initialized: true,
       }
     case 'SET_HIDDEN_CATEGORIES':
@@ -292,13 +294,18 @@ export function useStudyStore() {
     const theme = loadTheme()
     applyThemeToDom(theme)
 
-    const studyMode = loadStudyMode()
-    const streak = loadStreak()
-    const dailyGoal = loadDailyGoal()
     getAllStudyRecords().then((records) => {
       const map: StudyRecordMap = {}
       for (const r of records) map[r.questionId] = r
-      dispatch({ type: 'INIT', records: map, theme, studyMode, streak, dailyGoal })
+      dispatch({
+        type: 'INIT',
+        records: map,
+        theme: loadTheme(),
+        studyMode: loadStudyMode(),
+        streak: loadStreak(),
+        dailyGoal: loadDailyGoal(),
+        hiddenCategories: [...loadHiddenCategories()],
+      })
     })
   }, [])
 
