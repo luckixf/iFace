@@ -61,7 +61,7 @@ python scripts/audit_construction_json.py --fail-on-error
 
 ## GitHub 云同步配置
 
-云同步使用 GitHub OAuth 登录，并把学习进度与自定义题库备份到你的私有 Gist。这个功能需要自行配置 GitHub OAuth App；如果不配置，网站仍可正常本地刷题，只是云同步按钮会显示“未配置”。
+云同步使用 GitHub OAuth 登录，并把学习进度与自定义题库备份到你的私有 Gist。这个功能需要自行配置 GitHub OAuth App 和 `/api/auth` 服务端函数；如果不配置，网站仍可正常本地刷题，只是云同步不可用。
 
 创建 GitHub OAuth App：
 
@@ -74,11 +74,13 @@ Vercel 环境变量：
 ```text
 GITHUB_CLIENT_ID=your_github_oauth_app_client_id
 GITHUB_CLIENT_SECRET=your_github_oauth_app_client_secret
+# 可选：Vercel 通常能自动推断当前域名；自定义域名异常时再显式设置
 APP_ORIGIN=https://your-app.vercel.app
-VITE_GITHUB_CLIENT_ID=your_github_oauth_app_client_id
 ```
 
-本地开发时可以复制 `.env.example` 为 `.env`，然后填写同一个 `VITE_GITHUB_CLIENT_ID`。如果修改了 `VITE_` 开头的环境变量，需要重启 `npm run dev` 或重新构建。
+前端不再强制需要 `VITE_GITHUB_CLIENT_ID`。登录按钮会先进入同域名下的 `/api/auth?login=github`，由服务端读取 `GITHUB_CLIENT_ID` 并跳转到 GitHub；回调地址仍然必须精确填写为 `https://your-app.vercel.app/api/auth`。如果你修改了 Vercel 环境变量，请重新部署一次，否则线上函数仍会使用旧配置。
+
+如果部署在 GitHub Pages、普通静态文件服务器或没有 Serverless Function 的环境，`/api/auth` 无法运行，GitHub 云同步不会生效。此时可以继续使用本地刷题、导入/导出 JSON，或自行部署一个等价的 OAuth 后端。
 
 ## 自定义 JSON 格式
 

@@ -23,19 +23,28 @@ function PageLoader() {
 
 /**
  * Fallback component for /api/auth — only rendered if the Service Worker
- * intercepts the OAuth callback and serves the SPA shell instead of letting
+ * intercepts the OAuth login/callback and serves the SPA shell instead of letting
  * the request reach the Vercel serverless function.
  *
  * We immediately forward the browser to the real endpoint so the serverless
- * function can exchange the code for a token and redirect back to /?auth=success.
+ * function can continue the OAuth flow and redirect back to the app.
  */
 function ApiAuthFallback() {
   const location = useLocation()
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search)
+
+    if (params.get('__authFallback') === '1') {
+      window.location.replace('/?auth=error&reason=api_route_unavailable')
+      return
+    }
+
     // Re-issue the request as a full navigation so it bypasses any SW cache
-    // and hits the Vercel edge network directly.
-    const target = location.pathname + location.search
+    // and hits the Vercel edge network directly. If the same SPA fallback is
+    // served twice, report a readable deployment error instead of looping.
+    params.set('__authFallback', '1')
+    const target = `${location.pathname}?${params.toString()}${location.hash}`
     window.location.replace(target)
   }, [location])
 

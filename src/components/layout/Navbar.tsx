@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { SettingsDrawer } from '@/components/layout/SettingsDrawer'
+import { useAuthStore } from '@/store/useAuthStore'
 import { useStudyStore } from '@/store/useStudyStore'
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
 
 export function Navbar() {
   const location = useLocation()
+  const { authError } = useAuthStore()
   const { theme, toggleTheme } = useStudyStore()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -27,6 +29,12 @@ export function Navbar() {
   useEffect(() => {
     setMobileOpen(false)
   }, [])
+
+  useEffect(() => {
+    if (authError) {
+      setSettingsOpen(true)
+    }
+  }, [authError])
 
   // Lock body scroll when mobile menu open
   useEffect(() => {

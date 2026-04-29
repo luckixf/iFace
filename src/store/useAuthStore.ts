@@ -14,12 +14,12 @@ export interface AuthState {
   user: GitHubUser | null
   loading: boolean // true while fetching user profile
   initialized: boolean
+  authError: string | null
 }
 
-const GITHUB_CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? '').trim()
-export const githubOAuthConfigured = Boolean(GITHUB_CLIENT_ID)
+export const githubOAuthConfigured = true
 export const githubOAuthSetupMessage =
-  'GitHub 云同步未配置：请设置 VITE_GITHUB_CLIENT_ID，并在服务端设置 GITHUB_CLIENT_ID、GITHUB_CLIENT_SECRET 和 APP_ORIGIN。'
+  'GitHub 云同步需要可用的 /api/auth 服务：请在部署环境设置 GITHUB_CLIENT_ID 和 GITHUB_CLIENT_SECRET，并将 OAuth 回调地址设为当前域名下的 /api/auth。'
 
 type AuthAction =
   | { type: 'INIT_START' }
@@ -27,6 +27,7 @@ type AuthAction =
   | { type: 'SET_USER'; user: GitHubUser }
   | { type: 'LOGOUT' }
   | { type: 'SET_LOADING'; loading: boolean }
+  | { type: 'SET_AUTH_ERROR'; error: string | null }
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 
@@ -52,6 +53,25 @@ function clearToken(): void {
   } catch {}
 }
 
+function getOAuthErrorMessage(reason: string, detail?: string | null): string {
+  const messages: Record<string, string> = {
+    access_denied: 'GitHub 授权已取消或被拒绝。',
+    api_route_unavailable: '当前部署没有可用的 /api/auth 服务，GitHub 云同步需要 Vercel Serverless Function 或等价后端。',
+    bad_verification_code: 'GitHub 授权码已失效，请重新登录。',
+    github_error: 'GitHub token 接口返回异常，请稍后重试。',
+    internal_error: '云同步登录服务出现异常，请稍后重试。',
+    missing_code: 'GitHub 回调缺少授权 code，请重新登录。',
+    missing_gist_scope: 'GitHub 授权缺少 gist 权限，请重新授权。',
+    no_token: 'GitHub 没有返回访问令牌，请检查 OAuth App 配置。',
+    profile_error: '已拿到 GitHub 授权，但读取用户信息失败，请重新登录或检查网络。',
+    redirect_uri_mismatch: 'OAuth 回调地址不匹配，请检查 GitHub OAuth App 的 Authorization callback URL。',
+    server_misconfigured: '云同步服务端未配置 GITHUB_CLIENT_ID 或 GITHUB_CLIENT_SECRET。',
+    state_mismatch: 'GitHub 登录校验失败，请重新点击登录。',
+  }
+  const message = messages[reason] ?? `GitHub 登录失败：${reason}`
+  return detail ? `${message}（${detail}）` : message
+}
+
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
 function reducer(state: AuthState, action: AuthAction): AuthState {
@@ -61,11 +81,13 @@ function reducer(state: AuthState, action: AuthAction): AuthState {
     case 'SET_TOKEN':
       return { ...state, token: action.token, loading: true }
     case 'SET_USER':
-      return { ...state, user: action.user, loading: false, initialized: true }
+      return { ...state, user: action.user, loading: false, initialized: true, authError: null }
     case 'SET_LOADING':
       return { ...state, loading: action.loading }
+    case 'SET_AUTH_ERROR':
+      return { ...state, authError: action.error }
     case 'LOGOUT':
-      return { token: null, user: null, loading: false, initialized: true }
+      return { token: null, user: null, loading: false, initialized: true, authError: null }
     default:
       return state
   }
@@ -96,25 +118,24 @@ async function fetchGitHubUser(token: string): Promise<GitHubUser> {
 // ─── OAuth URL builder ────────────────────────────────────────────────────────
 
 /**
- * Build the GitHub OAuth authorization URL.
- * Scopes: only `gist` — the minimum required for creating/reading private gists.
+ * Build the local OAuth entry URL.
+ * /api/auth reads server-side GitHub credentials and then redirects to GitHub.
  */
 export function buildGitHubOAuthUrl(): string | null {
-  if (!GITHUB_CLIENT_ID) {
+  if (typeof window === 'undefined') {
     return null
   }
+
   // Random state to protect against CSRF
   const state = Math.random().toString(36).slice(2) + Date.now().toString(36)
   try {
     sessionStorage.setItem('iface_oauth_state', state)
   } catch {}
 
-  const params = new URLSearchParams({
-    client_id: GITHUB_CLIENT_ID,
-    scope: 'gist',
-    state,
-  })
-  return `https://github.com/login/oauth/authorize?${params.toString()}`
+  const authUrl = new URL('/api/auth', window.location.origin)
+  authUrl.searchParams.set('login', 'github')
+  authUrl.searchParams.set('state', state)
+  return authUrl.toString()
 }
 
 // ─── Global listener registry (one store, many hook instances) ────────────────
@@ -122,6 +143,24 @@ export function buildGitHubOAuthUrl(): string | null {
 const _listeners = new Set<(action: AuthAction) => void>()
 
 function broadcastAuth(action: AuthAction) {
+  switch (action.type) {
+    case 'SET_AUTH_ERROR':
+      _globalAuthError = action.error
+      break
+    case 'SET_TOKEN':
+      _globalToken = action.token
+      break
+    case 'SET_USER':
+      _globalUser = action.user
+      _globalAuthError = null
+      break
+    case 'LOGOUT':
+      _globalToken = null
+      _globalUser = null
+      _globalAuthError = null
+      break
+  }
+
   for (const fn of _listeners) fn(action)
 }
 
@@ -129,6 +168,7 @@ function broadcastAuth(action: AuthAction) {
 
 let _globalToken: string | null = null
 let _globalUser: GitHubUser | null = null
+let _globalAuthError: string | null = null
 let _initialized = false
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -139,6 +179,7 @@ export function useAuthStore() {
     user: _globalUser,
     loading: false,
     initialized: _initialized,
+    authError: _globalAuthError,
   })
 
   // ── Register as global listener ──
@@ -180,9 +221,19 @@ export function useAuthStore() {
 
   // ── Handle OAuth callback: token arrives via URL hash ──
   useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search)
+    if (searchParams.get('auth') === 'error') {
+      const reason = searchParams.get('reason') ?? 'unknown'
+      const detail = searchParams.get('detail')
+      const message = getOAuthErrorMessage(reason, detail)
+      _globalAuthError = message
+      broadcastAuth({ type: 'SET_AUTH_ERROR', error: message })
+      window.history.replaceState(null, '', window.location.pathname)
+      return
+    }
+
     const hash = window.location.hash
     if (!hash.includes('token=')) return
-
     const params = new URLSearchParams(hash.slice(1)) // remove leading #
     const token = params.get('token')
     if (!token) return
@@ -198,8 +249,11 @@ export function useAuthStore() {
     })()
     if (savedState && returnedState && savedState !== returnedState) {
       console.warn('[auth] OAuth state mismatch — possible CSRF, ignoring token')
+      const message = getOAuthErrorMessage('state_mismatch')
+      _globalAuthError = message
+      broadcastAuth({ type: 'SET_AUTH_ERROR', error: message })
       // Clean URL anyway
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      window.history.replaceState(null, '', window.location.pathname)
       return
     }
     try {
@@ -207,10 +261,12 @@ export function useAuthStore() {
     } catch {}
 
     // Clean token from URL immediately so it doesn't persist in history
-    window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    window.history.replaceState(null, '', window.location.pathname)
 
     saveToken(token)
     _globalToken = token
+    _globalAuthError = null
+    broadcastAuth({ type: 'SET_AUTH_ERROR', error: null })
     broadcastAuth({ type: 'SET_TOKEN', token })
 
     fetchGitHubUser(token)
@@ -221,7 +277,11 @@ export function useAuthStore() {
       .catch(() => {
         clearToken()
         _globalToken = null
+        _globalUser = null
         broadcastAuth({ type: 'LOGOUT' })
+        const message = getOAuthErrorMessage('profile_error')
+        _globalAuthError = message
+        broadcastAuth({ type: 'SET_AUTH_ERROR', error: message })
       })
   }, [])
 
@@ -242,6 +302,9 @@ export function useAuthStore() {
       return true
     } catch (err) {
       console.error('[auth] Failed to build OAuth URL:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      _globalAuthError = message
+      broadcastAuth({ type: 'SET_AUTH_ERROR', error: message })
       return false
     }
   }, [])
@@ -250,6 +313,7 @@ export function useAuthStore() {
     clearToken()
     _globalToken = null
     _globalUser = null
+    _globalAuthError = null
     broadcastAuth({ type: 'LOGOUT' })
   }, [])
 
@@ -260,6 +324,8 @@ export function useAuthStore() {
   const setToken = useCallback(async (token: string) => {
     saveToken(token)
     _globalToken = token
+    _globalAuthError = null
+    broadcastAuth({ type: 'SET_AUTH_ERROR', error: null })
     broadcastAuth({ type: 'SET_TOKEN', token })
     try {
       const user = await fetchGitHubUser(token)
@@ -277,6 +343,7 @@ export function useAuthStore() {
     user: state.user,
     loading: state.loading,
     initialized: state.initialized,
+    authError: state.authError,
     isLoggedIn: !!state.token && !!state.user,
     githubOAuthConfigured,
     githubOAuthSetupMessage,

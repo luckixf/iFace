@@ -9,14 +9,17 @@
  * Environment variables required (set in Vercel project settings):
  *   GITHUB_CLIENT_ID     — your GitHub OAuth App client ID
  *   GITHUB_CLIENT_SECRET — your GitHub OAuth App client secret
- *   APP_ORIGIN           — e.g. https://iface.vercel.app  (no trailing slash)
+ *   APP_ORIGIN           — optional, e.g. https://iface.vercel.app  (no trailing slash)
+ *                          If omitted, the function infers it from the request host.
  */
 
 export default async function handler(req, res) {
   // ── CORS pre-flight ────────────────────────────────────────────────────────
-  const origin = process.env.APP_ORIGIN || ''
+  const origin = getAppOrigin(req)
 
-  res.setHeader('Access-Control-Allow-Origin', origin)
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
 
@@ -28,10 +31,33 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { code, state } = req.query
+  const {
+    code,
+    state,
+    error,
+    error_description: errorDescription,
+    login,
+  } = req.query
 
-  if (!code) {
-    return res.status(400).json({ error: 'Missing OAuth code' })
+  if (!origin) {
+    console.error('[auth] Unable to infer app origin')
+    return res.status(500).json({ error: 'Unable to infer app origin' })
+  }
+
+  if (login) {
+    return redirectToGitHub(res, origin, state)
+  }
+
+  if (error) {
+    console.error('[auth] GitHub authorization failed:', error, errorDescription)
+    return redirectError(res, origin, String(error), errorDescription)
+  }
+
+  const codeValue = firstQueryValue(code)
+  const stateValue = firstQueryValue(state)
+
+  if (!codeValue) {
+    return redirectError(res, origin, 'missing_code')
   }
 
   const clientId = process.env.GITHUB_CLIENT_ID
@@ -39,10 +65,12 @@ export default async function handler(req, res) {
 
   if (!clientId || !clientSecret) {
     console.error('[auth] Missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET env vars')
-    return res.status(500).json({ error: 'Server misconfigured' })
+    return redirectError(res, origin, 'server_misconfigured')
   }
 
   try {
+    const redirectUri = new URL('/api/auth', origin).toString()
+
     // ── Exchange code for token ──────────────────────────────────────────────
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -53,7 +81,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         client_id: clientId,
         client_secret: clientSecret,
-        code,
+        code: codeValue,
+        redirect_uri: redirectUri,
       }),
     })
 
@@ -66,13 +95,13 @@ export default async function handler(req, res) {
 
     if (data.error || !data.access_token) {
       console.error('[auth] GitHub returned error:', data.error, data.error_description)
-      return redirectError(res, origin, data.error || 'no_token')
+      return redirectError(res, origin, data.error || 'no_token', data.error_description)
     }
 
     // Only accept tokens with the gist scope
     const scopes = (data.scope || '').split(',').map((s) => s.trim())
     if (!scopes.includes('gist')) {
-      return redirectError(res, origin, 'missing_gist_scope')
+      return redirectError(res, origin, 'missing_gist_scope', data.scope)
     }
 
     // ── Redirect back to app with token in hash ─────────────────────────────
@@ -81,7 +110,7 @@ export default async function handler(req, res) {
     const redirectUrl = new URL('/?auth=success', origin)
     redirectUrl.hash =
       `token=${encodeURIComponent(data.access_token)}` +
-      (state ? `&state=${encodeURIComponent(state)}` : '')
+      (stateValue ? `&state=${encodeURIComponent(stateValue)}` : '')
 
     return res.redirect(302, redirectUrl.toString())
   } catch (err) {
@@ -90,8 +119,54 @@ export default async function handler(req, res) {
   }
 }
 
-function redirectError(res, origin, errorCode) {
+function redirectToGitHub(res, origin, state) {
+  const clientId = process.env.GITHUB_CLIENT_ID
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET
+
+  if (!clientId || !clientSecret) {
+    console.error('[auth] Missing GITHUB_CLIENT_ID or GITHUB_CLIENT_SECRET env vars')
+    return redirectError(res, origin, 'server_misconfigured')
+  }
+
+  const redirectUri = new URL('/api/auth', origin).toString()
+  const url = new URL('https://github.com/login/oauth/authorize')
+  url.searchParams.set('client_id', clientId)
+  url.searchParams.set('redirect_uri', redirectUri)
+  url.searchParams.set('scope', 'gist')
+
+  const stateValue = firstQueryValue(state)
+  if (stateValue) {
+    url.searchParams.set('state', stateValue)
+  }
+
+  return res.redirect(302, url.toString())
+}
+
+function getHeader(req, name) {
+  const value = req.headers?.[name.toLowerCase()] ?? req.headers?.[name]
+  return Array.isArray(value) ? value[0] : value
+}
+
+function getAppOrigin(req) {
+  const configured = process.env.APP_ORIGIN?.trim().replace(/\/+$/, '')
+  if (configured) return configured
+
+  const host = getHeader(req, 'x-forwarded-host') ?? getHeader(req, 'host')
+  if (!host) return ''
+
+  const protocol = (getHeader(req, 'x-forwarded-proto') ?? 'https').split(',')[0].trim()
+  return `${protocol}://${String(host).split(',')[0].trim()}`
+}
+
+function firstQueryValue(value) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function redirectError(res, origin, errorCode, detail) {
   const url = new URL('/?auth=error', origin)
-  url.searchParams.set('reason', errorCode)
+  url.searchParams.set('reason', String(firstQueryValue(errorCode)))
+  if (detail) {
+    url.searchParams.set('detail', String(firstQueryValue(detail)))
+  }
   return res.redirect(302, url.toString())
 }

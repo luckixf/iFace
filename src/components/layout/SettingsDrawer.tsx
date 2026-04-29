@@ -451,6 +451,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
     user,
     isLoggedIn,
     loading: authLoading,
+    authError,
     githubOAuthConfigured,
     githubOAuthSetupMessage,
     login,
@@ -494,6 +495,12 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
       getCategoryMap().then(setCategoryMap)
     }
   }, [open])
+
+  useEffect(() => {
+    if (open && authError) {
+      setTab('sync')
+    }
+  }, [open, authError])
 
   useEffect(() => {
     return () => {
@@ -1867,8 +1874,24 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
                           textAlign: 'left',
                         }}
                       >
-                        GitHub 云同步还没有配置 OAuth Client ID。请先在环境变量中设置
-                        `VITE_GITHUB_CLIENT_ID`，并在服务端设置对应的 GitHub OAuth 密钥。
+                        GitHub 云同步还没有配置 OAuth 服务。请先在部署环境中设置
+                        `GITHUB_CLIENT_ID` 和 `GITHUB_CLIENT_SECRET`。
+                      </div>
+                    )}
+                    {authError && (
+                      <div
+                        style={{
+                          padding: '9px 11px',
+                          borderRadius: 9,
+                          background: 'rgba(239,68,68,0.08)',
+                          border: '1px solid rgba(239,68,68,0.22)',
+                          color: 'var(--danger)',
+                          fontSize: 12,
+                          lineHeight: 1.55,
+                          textAlign: 'left',
+                        }}
+                      >
+                        {authError}
                       </div>
                     )}
                     <button
