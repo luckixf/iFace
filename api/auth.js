@@ -69,8 +69,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    const redirectUri = new URL('/api/auth', origin).toString()
-
     // ── Exchange code for token ──────────────────────────────────────────────
     const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',
@@ -82,7 +80,6 @@ export default async function handler(req, res) {
         client_id: clientId,
         client_secret: clientSecret,
         code: codeValue,
-        redirect_uri: redirectUri,
       }),
     })
 
@@ -128,11 +125,12 @@ function redirectToGitHub(res, origin, state) {
     return redirectError(res, origin, 'server_misconfigured')
   }
 
-  const redirectUri = new URL('/api/auth', origin).toString()
   const url = new URL('https://github.com/login/oauth/authorize')
   url.searchParams.set('client_id', clientId)
-  url.searchParams.set('redirect_uri', redirectUri)
   url.searchParams.set('scope', 'gist')
+  // Keep redirect_uri omitted by default, matching the upstream project style.
+  // GitHub will use the callback URL configured in the OAuth App settings,
+  // which avoids Invalid Redirect URI errors caused by preview/custom domains.
 
   const stateValue = firstQueryValue(state)
   if (stateValue) {

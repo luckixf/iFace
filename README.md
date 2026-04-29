@@ -78,7 +78,7 @@ GITHUB_CLIENT_SECRET=your_github_oauth_app_client_secret
 APP_ORIGIN=https://your-app.vercel.app
 ```
 
-前端不再强制需要 `VITE_GITHUB_CLIENT_ID`。登录按钮会先进入同域名下的 `/api/auth?login=github`，由服务端读取 `GITHUB_CLIENT_ID` 并跳转到 GitHub；回调地址仍然必须精确填写为 `https://your-app.vercel.app/api/auth`。如果你修改了 Vercel 环境变量，请重新部署一次，否则线上函数仍会使用旧配置。
+前端不再强制需要 `VITE_GITHUB_CLIENT_ID`。登录按钮会先进入同域名下的 `/api/auth?login=github`，由服务端读取 `GITHUB_CLIENT_ID` 并跳转到 GitHub；GitHub 会使用 OAuth App 后台配置的 Authorization callback URL，所以它仍然必须精确填写为 `https://your-app.vercel.app/api/auth`。如果你看到 GitHub 的 `Invalid Redirect URI` 页面，请优先检查这个回调地址是否和实际部署域名、协议、路径完全一致。修改 Vercel 环境变量后也要重新部署一次，否则线上函数仍会使用旧配置。
 
 如果部署在 GitHub Pages、普通静态文件服务器或没有 Serverless Function 的环境，`/api/auth` 无法运行，GitHub 云同步不会生效。此时可以继续使用本地刷题、导入/导出 JSON，或自行部署一个等价的 OAuth 后端。
 
