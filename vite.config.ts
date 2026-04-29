@@ -15,9 +15,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       manifest: {
-        name: 'iFace · 建工三科刷题站',
-        short_name: 'iFace',
-        description: '建工考试本地刷题站，覆盖公路工程管理与实务、建设工程法规及相关知识、建设工程施工管理',
+        name: '建工刷题助手',
+        short_name: '建工刷题',
+        description: '面向建工考试备考的本地刷题网站，支持 JSON 题库导入、章节练习、错题复习和本地进度保存',
         theme_color: '#ffffff',
         background_color: '#ffffff',
         display: 'standalone',

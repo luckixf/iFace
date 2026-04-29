@@ -87,7 +87,7 @@ export function Navbar() {
                 letterSpacing: '-0.01em',
               }}
             >
-              iFace 建工刷题
+              建工刷题助手
             </span>
           </Link>
 
