@@ -2792,7 +2792,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
             }}
           >
             <a
-              href="https://github.com/dogxii/iFace"
+              href="https://github.com/luckixf/iFace"
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -2812,7 +2812,7 @@ export function SettingsDrawer({ open, onClose }: SettingsDrawerProps) {
               }}
             >
               <IconGitHub />
-              dogxii/iFace
+              luckixf/iFace
             </a>
             <span
               style={{
