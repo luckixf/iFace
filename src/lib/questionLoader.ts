@@ -54,6 +54,7 @@ interface LoadResult {
 }
 
 let builtinCatalogPromise: Promise<BuiltinCatalogEntry[]> | null = null
+let builtinCatalogIndexPromise: Promise<Map<string, BuiltinCatalogEntry>> | null = null
 const builtinFileCache = new Map<string, Promise<Question[]>>()
 const builtinQuestionCache = new Map<string, Question>()
 
@@ -95,6 +96,9 @@ function toQuestionSummary(entry: BuiltinCatalogEntry): Question {
 export async function getBuiltinQuestionCatalog(force = false): Promise<BuiltinCatalogEntry[]> {
   if (!force && builtinCatalogPromise) {
     return builtinCatalogPromise
+  }
+  if (force) {
+    builtinCatalogIndexPromise = null
   }
 
   builtinCatalogPromise = (async () => {
@@ -151,6 +155,17 @@ export async function getBuiltinCatalogQuestions(force = false): Promise<Questio
   return dedupeById(catalog.map(toQuestionSummary), `${BUILTIN_CATALOG_FILE}#summary`)
 }
 
+async function getBuiltinCatalogIndex(force = false): Promise<Map<string, BuiltinCatalogEntry>> {
+  if (!force && builtinCatalogIndexPromise) {
+    return builtinCatalogIndexPromise
+  }
+
+  builtinCatalogIndexPromise = getBuiltinQuestionCatalog(force).then(
+    (catalog) => new Map(catalog.map((entry) => [entry.id, entry])),
+  )
+  return builtinCatalogIndexPromise
+}
+
 async function getBuiltinQuestionsByFile(file: string): Promise<Question[]> {
   const cached = builtinFileCache.get(file)
   if (cached) {
@@ -187,18 +202,19 @@ export async function getBuiltinQuestionById(id: string): Promise<Question | und
     return cached
   }
 
-  const catalog = await getBuiltinQuestionCatalog()
-  const entry = catalog.find((item) => item.id === id)
+  const catalogIndex = await getBuiltinCatalogIndex()
+  const entry = catalogIndex.get(id)
   if (!entry) {
     return undefined
   }
 
-  const questions = await getBuiltinQuestionsByFile(entry.file)
-  return questions.find((question) => question.id === id)
+  await getBuiltinQuestionsByFile(entry.file)
+  return builtinQuestionCache.get(id)
 }
 
 export function resetBuiltinQuestionCaches(): void {
   builtinCatalogPromise = null
+  builtinCatalogIndexPromise = null
   builtinFileCache.clear()
   builtinQuestionCache.clear()
 }

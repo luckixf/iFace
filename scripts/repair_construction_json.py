@@ -110,6 +110,12 @@ MANUAL_ANSWER_OVERRIDES: dict[str, tuple[str, list[str], str]] = {
     ),
 }
 
+MANUAL_IMAGE_REMOVALS: dict[str, str] = {
+    "management-past-exams-2024-6-2-b-a100d7a1-q015": (
+        "image is an explanation/reference table, not a stem figure needed to answer"
+    ),
+}
+
 REMOVE_QUESTION_IDS = {
     # These entries are parser fragments or image-choice questions without a
     # recoverable image/options payload in the current JSON/assets.
@@ -480,6 +486,15 @@ def normalize_known_ocr_text(question: dict[str, Any], file: str, repairs: list[
         repairs.append(Repair("known_ocr_normalization", qid, file, ",".join(sorted(set(changed_fields)))))
 
 
+def apply_manual_image_removals(question: dict[str, Any], file: str, repairs: list[Repair]) -> None:
+    qid = str(question.get("id", ""))
+    reason = MANUAL_IMAGE_REMOVALS.get(qid)
+    if not reason or not question.get("questionImages"):
+        return
+    question.pop("questionImages", None)
+    repairs.append(Repair("manual_remove_question_image", qid, file, reason))
+
+
 def load_question_files() -> list[tuple[Path, list[dict[str, Any]]]]:
     files: list[tuple[Path, list[dict[str, Any]]]] = []
     for path in sorted(QUESTION_ROOT.rglob("*.json")):
@@ -544,6 +559,7 @@ def repair(dry_run: bool) -> list[Repair]:
             trim_answer_spill(question, rel_file, repairs)
             dedupe_and_fill_options(question, rel_file, repairs)
             apply_manual_option_text_overrides(question, rel_file, repairs)
+            apply_manual_image_removals(question, rel_file, repairs)
             allow_inference = any(
                 repair.question_id == qid
                 and repair.code in {"trim_answer_spill", "dedupe_options", "trim_stem_spill"}

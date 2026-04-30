@@ -523,9 +523,16 @@ def extract_page_lines(page: fitz.Page, title: str) -> list[TextLine]:
     return lines
 
 
-def extract_significant_image_rects(page: fitz.Page) -> list[fitz.Rect]:
-    page_area = page.rect.width * page.rect.height
-    rects: list[fitz.Rect] = []
+def image_rect_key(rect: fitz.Rect) -> tuple[float, float, float, float]:
+    return (
+        round(rect.x0, 1),
+        round(rect.y0, 1),
+        round(rect.x1, 1),
+        round(rect.y1, 1),
+    )
+
+
+def iter_page_image_rects(page: fitz.Page) -> Iterable[fitz.Rect]:
     seen: set[tuple[float, float, float, float]] = set()
 
     for image in page.get_images(full=True):
@@ -533,24 +540,55 @@ def extract_significant_image_rects(page: fitz.Page) -> list[fitz.Rect]:
         for rect in page.get_image_rects(xref):
             if rect.is_empty:
                 continue
-            key = (
-                round(rect.x0, 1),
-                round(rect.y0, 1),
-                round(rect.x1, 1),
-                round(rect.y1, 1),
-            )
+            key = image_rect_key(rect)
             if key in seen:
                 continue
             seen.add(key)
+            yield rect
 
-            area = rect.width * rect.height
-            if area < page_area * 0.02:
-                continue
-            if rect.width < 120 or rect.height < 50:
-                continue
-            if rect.y1 < 80:
-                continue
 
+def is_significant_image_rect(page: fitz.Page, rect: fitz.Rect) -> bool:
+    page_area = page.rect.width * page.rect.height
+    area = rect.width * rect.height
+    if area < page_area * 0.02:
+        return False
+    if rect.width < 120 or rect.height < 50:
+        return False
+    if rect.y1 < 80:
+        return False
+    return True
+
+
+def build_repeated_image_rect_keys(doc: fitz.Document) -> set[tuple[float, float, float, float]]:
+    """Ignore fixed-position image objects that behave like watermarks/backgrounds."""
+
+    rect_page_counts: dict[tuple[float, float, float, float], int] = {}
+    page_count = len(doc)
+    min_repeats = max(3, int(page_count * 0.3))
+
+    for page in doc:
+        keys_on_page = {
+            image_rect_key(rect)
+            for rect in iter_page_image_rects(page)
+            if is_significant_image_rect(page, rect)
+        }
+        for key in keys_on_page:
+            rect_page_counts[key] = rect_page_counts.get(key, 0) + 1
+
+    return {key for key, count in rect_page_counts.items() if count >= min_repeats}
+
+
+def extract_significant_image_rects(
+    page: fitz.Page,
+    ignored_keys: set[tuple[float, float, float, float]] | None = None,
+) -> list[fitz.Rect]:
+    rects: list[fitz.Rect] = []
+    ignored_keys = ignored_keys or set()
+
+    for rect in iter_page_image_rects(page):
+        if image_rect_key(rect) in ignored_keys:
+            continue
+        if is_significant_image_rect(page, rect):
             rects.append(rect)
 
     rects.sort(key=lambda rect: (rect.y0, rect.x0))
@@ -785,6 +823,7 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
     title = pdf_path.stem
     module_name = build_module_name(branch, title)
     doc = fitz.open(pdf_path)
+    ignored_image_rect_keys = build_repeated_image_rect_keys(doc)
 
     questions: list[dict] = []
     current_type = "single"
@@ -823,7 +862,25 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
 
     for page in doc:
         page_lines = extract_page_lines(page, title)
-        started_on_page: list[tuple[ParsedQuestion, float]] = []
+        image_spans: list[tuple[ParsedQuestion, float, float]] = []
+        open_image_span: tuple[ParsedQuestion, float] | None = None
+
+        def close_image_span(end_y: float) -> None:
+            nonlocal open_image_span
+            if open_image_span is None:
+                return
+            question_ref, start_y = open_image_span
+            if end_y > start_y + 4:
+                image_spans.append((question_ref, start_y, end_y))
+            open_image_span = None
+
+        def open_question_image_span(question_ref: ParsedQuestion, start_y: float) -> None:
+            close_image_span(start_y)
+            nonlocal open_image_span
+            open_image_span = (question_ref, max(0.0, start_y))
+
+        if current_question is not None and current_section != "analysis":
+            open_image_span = (current_question, 0.0)
 
         for line in page_lines:
             new_type = detect_question_type(line.text)
@@ -848,9 +905,10 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
                         should_start = True
 
                 if should_start:
+                    close_image_span(line.y)
                     flush_current()
                     current_question = start_question(number, rest, line.page)
-                    started_on_page.append((current_question, line.y))
+                    open_question_image_span(current_question, line.y)
                     continue
 
             if current_question is None:
@@ -860,6 +918,7 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
                 current_question.pages.append(line.page)
 
             if answer_match:
+                close_image_span(line.y)
                 current_question.answer_key = clean_answer_key(
                     answer_match.group(1).strip(),
                     current_question.question_type,
@@ -868,6 +927,7 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
                 continue
 
             if analysis_match:
+                close_image_span(line.y)
                 append_line(current_question.analysis_lines, analysis_match.group(1).strip())
                 current_section = "analysis"
                 continue
@@ -889,18 +949,24 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
             else:
                 append_line(current_question.stem_lines, line.text)
 
+        close_image_span(page.rect.y1)
+
         if current_question is not None:
-            image_rects = extract_significant_image_rects(page)
+            image_rects = extract_significant_image_rects(page, ignored_image_rect_keys)
             asset_dir = ASSETS_ROOT / branch.slug / group.output_dir / file_slug
             asset_dir.mkdir(parents=True, exist_ok=True)
 
             for rect in image_rects:
-                target_question = current_question
-                for question_ref, start_y in started_on_page:
-                    if rect.y0 >= start_y - 2:
+                target_question = None
+                rect_height = max(rect.height, 1)
+                for question_ref, start_y, end_y in image_spans:
+                    overlap = max(0.0, min(rect.y1, end_y) - max(rect.y0, start_y))
+                    if overlap / rect_height >= 0.55:
                         target_question = question_ref
-                    else:
                         break
+
+                if target_question is None:
+                    continue
 
                 image_index = len(target_question.question_images) + 1
                 clip = rect + (-10, -10, 10, 10)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAllQuestions, getQuestionById as getStoredQuestionById } from '@/lib/db'
 import {
   getBuiltinCatalogQuestions,
@@ -37,6 +37,27 @@ let _allQuestions: Question[] = []
 let _loaded = false
 let _loading = false
 const _waiters: Array<() => void> = []
+let _questionById = new Map<string, Question>()
+let _questionsByModule = new Map<Module, Question[]>()
+
+function rebuildQuestionIndexes(questions: Question[]): void {
+  const byId = new Map<string, Question>()
+  const byModule = new Map<Module, Question[]>()
+
+  for (const question of questions) {
+    byId.set(question.id, question)
+
+    const moduleQuestions = byModule.get(question.module)
+    if (moduleQuestions) {
+      moduleQuestions.push(question)
+    } else {
+      byModule.set(question.module, [question])
+    }
+  }
+
+  _questionById = byId
+  _questionsByModule = byModule
+}
 
 function dedupeQuestions(questions: Question[]): Question[] {
   const seen = new Set<string>()
@@ -73,6 +94,7 @@ async function ensureLoaded(): Promise<Question[]> {
     )
 
     _allQuestions = [...dedupedBuiltinQuestions, ...customQuestions]
+    rebuildQuestionIndexes(_allQuestions)
     _loaded = true
     return _allQuestions
   } finally {
@@ -88,6 +110,8 @@ export function invalidateQuestionsCache() {
   _loaded = false
   _loading = false
   _allQuestions = []
+  _questionById = new Map<string, Question>()
+  _questionsByModule = new Map<Module, Question[]>()
   resetBuiltinQuestionCaches()
 }
 
@@ -191,21 +215,46 @@ export function useQuestions(
 
   // ── Derived: filtered + sorted questions ──────────────────────────────────
 
-  const filteredQuestions = useCallback((): Question[] => {
+  const filteredQuestions = useMemo((): Question[] => {
     if (!filter && !recordMap) return allQuestions
     return applyFilters(allQuestions, filter ?? {}, recordMap ?? {}, sort)
-  }, [allQuestions, filter, recordMap, sort])()
+  }, [allQuestions, filter, recordMap, sort])
 
   // ── Lookup helpers ────────────────────────────────────────────────────────
 
+  const questionById = useMemo(() => {
+    if (allQuestions === _allQuestions) return _questionById
+
+    const byId = new Map<string, Question>()
+    for (const question of allQuestions) {
+      byId.set(question.id, question)
+    }
+    return byId
+  }, [allQuestions])
+
+  const questionsByModule = useMemo(() => {
+    if (allQuestions === _allQuestions) return _questionsByModule
+
+    const byModule = new Map<Module, Question[]>()
+    for (const question of allQuestions) {
+      const moduleQuestions = byModule.get(question.module)
+      if (moduleQuestions) {
+        moduleQuestions.push(question)
+      } else {
+        byModule.set(question.module, [question])
+      }
+    }
+    return byModule
+  }, [allQuestions])
+
   const getQuestionById = useCallback(
-    (id: string): Question | undefined => allQuestions.find((q) => q.id === id),
-    [allQuestions],
+    (id: string): Question | undefined => questionById.get(id),
+    [questionById],
   )
 
   const getQuestionsByModule = useCallback(
-    (module: Module): Question[] => allQuestions.filter((q) => q.module === module),
-    [allQuestions],
+    (module: Module): Question[] => questionsByModule.get(module) ?? [],
+    [questionsByModule],
   )
 
   const getDailyIds = useCallback(
@@ -267,7 +316,7 @@ export function useQuestion(id: string | undefined): {
     setLoading(true)
     ensureLoaded()
       .then(async (questions) => {
-        const cached = questions.find((question) => question.id === id)
+        const cached = _questionById.get(id) ?? questions.find((question) => question.id === id)
         if (cached?.answer) {
           setQuestion(cached)
           return

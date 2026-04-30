@@ -1394,12 +1394,13 @@ const SORT_OPTIONS: SortOption[] = [
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = 24
+const AUTO_LOAD_PAGE_LIMIT = 5
 
 export default function QuestionList() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { allQuestions, initializing } = useQuestions()
-  const { records, getStatus, hiddenCategories } = useStudyStore()
+  const { records, hiddenCategories } = useStudyStore()
 
   // ── Filter state (sync with URL) ──
   const initModules = useMemo(() => {
@@ -1448,12 +1449,14 @@ export default function QuestionList() {
   // Derive sorted module list from visible questions (built-ins first, then custom alphabetically)
   const availableModules = useMemo<Module[]>(() => {
     const moduleSet = new Set(visibleQuestions.map((q) => q.module))
+    const builtinSet = new Set(BUILTIN_MODULES as readonly string[])
     const builtins = (BUILTIN_MODULES as readonly string[]).filter((m) => moduleSet.has(m))
     const custom = [...moduleSet]
-      .filter((m) => !(BUILTIN_MODULES as readonly string[]).includes(m))
+      .filter((m) => !builtinSet.has(m))
       .sort((a, b) => a.localeCompare(b))
     return [...builtins, ...custom]
   }, [visibleQuestions])
+  const availableModuleSet = useMemo(() => new Set(availableModules), [availableModules])
 
   const moduleQuestionCounts = useMemo<Record<string, number>>(() => {
     const counts: Record<string, number> = {}
@@ -1464,8 +1467,9 @@ export default function QuestionList() {
   }, [visibleQuestions])
 
   const directorySubjects = useMemo<DirectorySubjectGroup[]>(() => {
+    const builtinSet = new Set(BUILTIN_MODULES as readonly string[])
     const activeBuiltinModules = new Set(
-      availableModules.filter((module) => (BUILTIN_MODULES as readonly string[]).includes(module)),
+      availableModules.filter((module) => builtinSet.has(module)),
     )
     const subjects = new Map<string, DirectorySubjectGroup>()
 
@@ -1636,22 +1640,29 @@ export default function QuestionList() {
   ])
 
   // ── Paginated ──
-  const pagedQuestions = filteredQuestions.slice(0, page * PAGE_SIZE)
+  const renderedQuestionLimit = page * PAGE_SIZE
+  const pagedQuestions = useMemo(
+    () => filteredQuestions.slice(0, renderedQuestionLimit),
+    [filteredQuestions, renderedQuestionLimit],
+  )
   const hasMore = pagedQuestions.length < filteredQuestions.length
+  const canAutoLoadMore = hasMore && page < AUTO_LOAD_PAGE_LIMIT
 
   // ── Load more on scroll ──
   const loaderRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!loaderRef.current || !hasMore) return
+    if (!loaderRef.current || !canAutoLoadMore) return
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) setPage((p) => p + 1)
+        if (entries[0].isIntersecting) {
+          setPage((p) => Math.min(p + 1, AUTO_LOAD_PAGE_LIMIT))
+        }
       },
       { threshold: 0.1 },
     )
     observer.observe(loaderRef.current)
     return () => observer.disconnect()
-  }, [hasMore])
+  }, [canAutoLoadMore])
 
   const hasFilters =
     selectedModules.length > 0 ||
@@ -1665,8 +1676,8 @@ export default function QuestionList() {
 
   // Keep selectedModules valid when availableModules changes (e.g. after import)
   useEffect(() => {
-    setSelectedModules((prev) => prev.filter((m) => availableModules.includes(m)))
-  }, [availableModules])
+    setSelectedModules((prev) => prev.filter((m) => availableModuleSet.has(m)))
+  }, [availableModuleSet])
 
   return (
     <div className="page-container">
@@ -2172,11 +2183,16 @@ export default function QuestionList() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {pagedQuestions.map((q, i) => (
-                <QuestionCard key={q.id} question={q} status={getStatus(q.id)} index={i} />
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  status={records[q.id]?.status ?? 'unlearned'}
+                  index={i}
+                />
               ))}
 
               {/* Infinite scroll loader */}
-              {hasMore && (
+              {hasMore && canAutoLoadMore && (
                 <div ref={loaderRef} style={{ paddingTop: 12 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {[
@@ -2209,6 +2225,25 @@ export default function QuestionList() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {hasMore && !canAutoLoadMore && (
+                <div
+                  style={{
+                    paddingTop: 14,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  <Button variant="secondary" size="sm" onClick={() => setPage((p) => p + 1)}>
+                    继续显示更多题目
+                  </Button>
+                  <p style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                    已显示 {pagedQuestions.length} / {filteredQuestions.length} 道，手动加载可减少移动端卡顿
+                  </p>
                 </div>
               )}
 

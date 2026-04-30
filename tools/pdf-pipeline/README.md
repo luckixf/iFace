@@ -49,3 +49,18 @@ src/generated/constructionBank.ts
 
 Treat the output as AI/OCR-assisted generated data. Always audit and spot-check
 the generated question bank before publishing it.
+
+## Image Audit
+
+After rebuilding and running the conservative JSON repair pass, audit question
+image references:
+
+```bash
+python scripts/audit_question_images.py --fail-on-error
+```
+
+To remove image files that are no longer referenced by any generated question:
+
+```bash
+python scripts/audit_question_images.py --prune-unreferenced --fail-on-error
+```

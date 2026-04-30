@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "questions_scanned": 7213,
+    "image_questions": 84,
+    "image_refs": 101,
+    "asset_files": 101,
+    "unreferenced_assets": 0,
+    "issues": 0,
+    "errors": 0,
+    "review": 0
+  },
+  "issues": []
+}

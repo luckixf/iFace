@@ -5,6 +5,7 @@ import { Button, Kbd, Skeleton, Spinner } from '@/components/ui'
 import { AIPanelWithStyles } from '@/components/ui/AIPanel'
 import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer'
 import { useQuestion, useQuestions } from '@/hooks/useQuestions'
+import { getExistingQuestionSessionQuery, getQuestionSessionIds } from '@/lib/questionSession'
 import { useAIStore } from '@/store/useAIStore'
 import { clearSessionReview, useStudyStore } from '@/store/useStudyStore'
 import {
@@ -1211,8 +1212,9 @@ export default function QuestionDetail() {
   const [celebrationStreak, setCelebrationStreak] = useState(0)
   const answerRef = useRef<HTMLDivElement>(null)
 
-  // Session context (from ?ids=... params)
-  const sessionIds = searchParams.get('ids')?.split(',').filter(Boolean) ?? []
+  // Session context (from compact sessionStorage key or legacy ?ids=... params)
+  const sessionIds = useMemo(() => getQuestionSessionIds(searchParams), [searchParams])
+  const sessionQuery = useMemo(() => getExistingQuestionSessionQuery(searchParams), [searchParams])
   const isInSession = sessionIds.length > 0
   const sessionIndex = isInSession ? sessionIds.indexOf(id ?? '') : -1
 
@@ -1315,8 +1317,7 @@ export default function QuestionDetail() {
 
       if (isInSession && nextId) {
         setTimeout(() => {
-          const idsParam = sessionIds.length > 0 ? `?ids=${sessionIds.join(',')}` : ''
-          navigate(`/questions/${nextId}${idsParam}`)
+          navigate(`/questions/${nextId}${sessionQuery}`)
         }, 600)
       }
     },
@@ -1327,7 +1328,7 @@ export default function QuestionDetail() {
       isInSession,
       nextId,
       navigate,
-      sessionIds,
+      sessionQuery,
       incrementStreak,
       streak.currentStreak,
     ],
@@ -1343,10 +1344,9 @@ export default function QuestionDetail() {
   const navigateTo = useCallback(
     (targetId: string | null | undefined) => {
       if (!targetId) return
-      const idsParam = sessionIds.length > 0 ? `?ids=${sessionIds.join(',')}` : ''
-      navigate(`/questions/${targetId}${idsParam}`)
+      navigate(`/questions/${targetId}${sessionQuery}`)
     },
-    [navigate, sessionIds],
+    [navigate, sessionQuery],
   )
 
   // Keyboard shortcuts

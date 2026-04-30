@@ -1,7 +1,16 @@
 {
   "summary": {
-    "repair_count": 0,
-    "repairs_by_code": {}
+    "repair_count": 1,
+    "repairs_by_code": {
+      "manual_remove_question_image": 1
+    }
   },
-  "repairs": []
+  "repairs": [
+    {
+      "code": "manual_remove_question_image",
+      "question_id": "management-past-exams-2024-6-2-b-a100d7a1-q015",
+      "file": "management/past-exams/management-past-exams-2024-6-2-b-a100d7a1.json",
+      "detail": "image is an explanation/reference table, not a stem figure needed to answer"
+    }
+  ]
 }

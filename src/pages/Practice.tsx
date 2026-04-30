@@ -7,6 +7,11 @@ import {
   filterQuestionsByHiddenModules,
   getHiddenModulesFromCategories,
 } from '@/lib/questionVisibility'
+import {
+  buildQuestionSessionPath,
+  getExistingQuestionSessionQuery,
+  getQuestionSessionIds,
+} from '@/lib/questionSession'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   DIFFICULTY_LABELS,
@@ -513,16 +518,14 @@ export default function Practice() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | 'all'>('all')
   const [selectedStatus, setSelectedStatus] = useState<StudyStatus | 'all'>('all')
   const [isShuffled, setIsShuffled] = useState(false)
+  const [openCategoryNames, setOpenCategoryNames] = useState<Set<string>>(() => new Set())
 
   // Handle preset from URL params (e.g. from daily recommendations)
   useEffect(() => {
-    const ids = searchParams.get('ids')
-    if (ids) {
-      const idList = ids.split(',').filter(Boolean)
-      if (idList.length > 0) {
-        // Navigate directly into session
-        navigate(`/questions/${idList[0]}?ids=${ids}`, { replace: true })
-      }
+    const idList = getQuestionSessionIds(searchParams)
+    if (idList.length > 0) {
+      const query = getExistingQuestionSessionQuery(searchParams)
+      navigate(`/questions/${encodeURIComponent(idList[0])}${query}`, { replace: true })
     }
   }, [searchParams, navigate])
 
@@ -547,13 +550,20 @@ export default function Practice() {
   const deferredSelectedDifficulty = useDeferredValue(selectedDifficulty)
   const deferredSelectedStatus = useDeferredValue(selectedStatus)
   const deferredRecords = useDeferredValue(records)
+  const selectedModuleSet = useMemo(() => new Set(selectedModules), [selectedModules])
+  const deferredSelectedModuleSet = useMemo(
+    () => new Set(deferredSelectedModules),
+    [deferredSelectedModules],
+  )
 
   const hiddenQuestionCount = allQuestions.length - visibleQuestions.length
 
   // ── All unique modules that actually have questions ──
-  const activeModules = useMemo(() => {
-    return [...new Set(visibleQuestions.map((q) => q.module))]
-  }, [visibleQuestions])
+  const activeModules = useMemo(
+    () => [...new Set(visibleQuestions.map((q) => q.module))],
+    [visibleQuestions],
+  )
+  const activeModuleSet = useMemo(() => new Set(activeModules), [activeModules])
 
   // ── Derived stats — for ALL active modules (not just builtin) ──
   const moduleStats = useMemo(() => {
@@ -571,6 +581,10 @@ export default function Practice() {
     }
     return activeModules.map((mod) => stats.get(mod) ?? { module: mod, total: 0, mastered: 0 })
   }, [visibleQuestions, activeModules, records])
+  const moduleStatsByModule = useMemo(
+    () => new Map(moduleStats.map((stat) => [stat.module, stat])),
+    [moduleStats],
+  )
 
   // ── Ordered categories with their modules (only those with questions) ──
   const categoriesWithModules = useMemo(() => {
@@ -599,24 +613,47 @@ export default function Practice() {
     return fromMap
   }, [categoryMap, activeModules])
 
-  const difficultyStats = useMemo(() => {
-    const base = { 1: 0, 2: 0, 3: 0 }
-    let filtered = visibleQuestions
-    if (selectedModules.length > 0) {
-      const set = new Set(selectedModules)
-      filtered = filtered.filter((q) => set.has(q.module))
+  const firstCategoryName = categoriesWithModules[0]?.name
+
+  useEffect(() => {
+    if (!firstCategoryName) return
+
+    setOpenCategoryNames((prev) => {
+      if (prev.size > 0) return prev
+      return new Set([firstCategoryName])
+    })
+  }, [firstCategoryName])
+
+  useEffect(() => {
+    if (selectedModuleSet.size === 0) return
+
+    setOpenCategoryNames((prev) => {
+      const next = new Set(prev)
+      for (const cat of categoriesWithModules) {
+        if (cat.modules.some((module) => selectedModuleSet.has(module))) {
+          next.add(cat.name)
+        }
+      }
+      return next.size === prev.size ? prev : next
+    })
+  }, [categoriesWithModules, selectedModuleSet])
+
+  const difficultyStats = useMemo<Record<Difficulty | 'all', number>>(() => {
+    const base: Record<Difficulty | 'all', number> = { all: 0, 1: 0, 2: 0, 3: 0 }
+    for (const q of visibleQuestions) {
+      if (selectedModuleSet.size > 0 && !selectedModuleSet.has(q.module)) continue
+      base.all++
+      base[q.difficulty]++
     }
-    for (const q of filtered) base[q.difficulty]++
     return base
-  }, [visibleQuestions, selectedModules])
+  }, [visibleQuestions, selectedModuleSet])
 
   // ── Filtered question list ──
   const filteredQuestions = useMemo(() => {
     let result = deferredVisibleQuestions
 
-    if (deferredSelectedModules.length > 0) {
-      const set = new Set(deferredSelectedModules)
-      result = result.filter((q) => set.has(q.module))
+    if (deferredSelectedModuleSet.size > 0) {
+      result = result.filter((q) => deferredSelectedModuleSet.has(q.module))
     }
 
     if (deferredSelectedDifficulty !== 'all') {
@@ -633,28 +670,24 @@ export default function Practice() {
     return result
   }, [
     deferredVisibleQuestions,
-    deferredSelectedModules,
+    deferredSelectedModuleSet,
     deferredSelectedDifficulty,
     deferredSelectedStatus,
     deferredRecords,
   ])
 
   const statusCounts = useMemo(() => {
-    let pool = visibleQuestions
-    if (selectedModules.length > 0) {
-      const set = new Set(selectedModules)
-      pool = pool.filter((q) => set.has(q.module))
-    }
-    if (selectedDifficulty !== 'all') {
-      pool = pool.filter((q) => q.difficulty === selectedDifficulty)
-    }
-    const counts = { all: pool.length, unlearned: 0, mastered: 0, review: 0 }
-    for (const q of pool) {
+    const counts = { all: 0, unlearned: 0, mastered: 0, review: 0 }
+    for (const q of visibleQuestions) {
+      if (selectedModuleSet.size > 0 && !selectedModuleSet.has(q.module)) continue
+      if (selectedDifficulty !== 'all' && q.difficulty !== selectedDifficulty) continue
+
+      counts.all++
       const s = records[q.id]?.status ?? 'unlearned'
       counts[s]++
     }
     return counts
-  }, [visibleQuestions, selectedModules, selectedDifficulty, records])
+  }, [visibleQuestions, selectedModuleSet, selectedDifficulty, records])
 
   // ── Handlers ──
   const toggleModule = useCallback((mod: Module) => {
@@ -666,12 +699,28 @@ export default function Practice() {
   // Select / deselect all modules in a category
   const toggleCategory = useCallback((catModules: Module[]) => {
     setSelectedModules((prev) => {
-      const allSelected = catModules.every((m) => prev.includes(m))
+      const prevSet = new Set(prev)
+      const catModuleSet = new Set(catModules)
+      const allSelected = catModules.every((m) => prevSet.has(m))
       if (allSelected) {
-        return prev.filter((m) => !catModules.includes(m))
+        return prev.filter((m) => !catModuleSet.has(m))
       }
-      const toAdd = catModules.filter((m) => !prev.includes(m))
-      return [...prev, ...toAdd]
+      for (const module of catModules) {
+        prevSet.add(module)
+      }
+      return [...prevSet]
+    })
+  }, [])
+
+  const toggleCategoryOpen = useCallback((categoryName: string) => {
+    setOpenCategoryNames((prev) => {
+      const next = new Set(prev)
+      if (next.has(categoryName)) {
+        next.delete(categoryName)
+      } else {
+        next.add(categoryName)
+      }
+      return next
     })
   }, [])
 
@@ -695,15 +744,15 @@ export default function Practice() {
     }
 
     const firstId = ids[0]
-    navigate(`/questions/${firstId}?ids=${ids.join(',')}`)
+    navigate(buildQuestionSessionPath(firstId, ids))
   }, [filteredQuestions, isShuffled, navigate])
 
   useEffect(() => {
     setSelectedModules((prev) => {
-      const next = prev.filter((module) => activeModules.includes(module))
+      const next = prev.filter((module) => activeModuleSet.has(module))
       return next.length === prev.length ? prev : next
     })
-  }, [activeModules])
+  }, [activeModuleSet])
 
   // ── Loading ──
   if (initializing) {
@@ -921,9 +970,14 @@ export default function Practice() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {categoriesWithModules.map((cat) => {
                   const catModules = cat.modules as Module[]
+                  const expanded = openCategoryNames.has(cat.name)
+                  const catQuestionCount = catModules.reduce(
+                    (sum, module) => sum + (moduleStatsByModule.get(module)?.total ?? 0),
+                    0,
+                  )
                   const allCatSelected =
-                    catModules.length > 0 && catModules.every((m) => selectedModules.includes(m))
-                  const someCatSelected = catModules.some((m) => selectedModules.includes(m))
+                    catModules.length > 0 && catModules.every((m) => selectedModuleSet.has(m))
+                  const someCatSelected = catModules.some((m) => selectedModuleSet.has(m))
                   return (
                     <div key={cat.name}>
                       {/* Category header */}
@@ -935,6 +989,41 @@ export default function Practice() {
                           marginBottom: 10,
                         }}
                       >
+                        <button
+                          type="button"
+                          onClick={() => toggleCategoryOpen(cat.name)}
+                          aria-expanded={expanded}
+                          style={{
+                            width: 22,
+                            height: 22,
+                            borderRadius: 8,
+                            border: '1px solid var(--border-subtle)',
+                            background: expanded ? 'var(--surface-2)' : 'var(--surface)',
+                            color: 'var(--text-2)',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{
+                              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.15s',
+                            }}
+                          >
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
+                        </button>
                         <button
                           type="button"
                           onClick={() => toggleCategory(catModules)}
@@ -1039,37 +1128,36 @@ export default function Practice() {
                           }}
                         >
                           {catModules.length} 个模块 ·{' '}
-                          {catModules.reduce(
-                            (sum, m) => sum + (moduleStats.find((s) => s.module === m)?.total ?? 0),
-                            0,
-                          )}{' '}
+                          {catQuestionCount}{' '}
                           道题
                         </span>
                       </div>
 
                       {/* Module cards */}
-                      <div
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(4, 1fr)',
-                          gap: 8,
-                        }}
-                        className="modules-grid"
-                      >
-                        {catModules.map((mod) => {
-                          const stat = moduleStats.find((s) => s.module === mod)
-                          return (
-                            <ModuleCard
-                              key={mod}
-                              module={mod}
-                              selected={selectedModules.includes(mod)}
-                              questionCount={stat?.total ?? 0}
-                              masteredCount={stat?.mastered ?? 0}
-                              onClick={() => toggleModule(mod)}
-                            />
-                          )
-                        })}
-                      </div>
+                      {expanded && (
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(4, 1fr)',
+                            gap: 8,
+                          }}
+                          className="modules-grid"
+                        >
+                          {catModules.map((mod) => {
+                            const stat = moduleStatsByModule.get(mod)
+                            return (
+                              <ModuleCard
+                                key={mod}
+                                module={mod}
+                                selected={selectedModuleSet.has(mod)}
+                                questionCount={stat?.total ?? 0}
+                                masteredCount={stat?.mastered ?? 0}
+                                onClick={() => toggleModule(mod)}
+                              />
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -1094,11 +1182,7 @@ export default function Practice() {
                 <DifficultyChip
                   difficulty="all"
                   selected={selectedDifficulty === 'all'}
-                  count={
-                    selectedModules.length > 0
-                      ? visibleQuestions.filter((q) => selectedModules.includes(q.module)).length
-                      : visibleQuestions.length
-                  }
+                  count={difficultyStats.all}
                   onClick={() => setSelectedDifficulty('all')}
                 />
                 {([1, 2, 3] as Difficulty[]).map((d) => (

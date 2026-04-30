@@ -7,6 +7,7 @@ import {
   filterQuestionsByHiddenModules,
   getHiddenModulesFromCategories,
 } from '@/lib/questionVisibility'
+import { createQuestionSessionQuery } from '@/lib/questionSession'
 import { useStudyStore } from '@/store/useStudyStore'
 import {
   DIFFICULTY_COLORS,
@@ -38,7 +39,7 @@ function WeakQuestionRow({
   lastUpdated,
   reviewCount,
   index,
-  sessionIds,
+  sessionQuery,
 }: {
   question: {
     id: string
@@ -51,17 +52,15 @@ function WeakQuestionRow({
   lastUpdated: number
   reviewCount: number
   index: number
-  sessionIds: string[]
+  sessionQuery: string
 }) {
-  const idsParam = sessionIds.length > 0 ? `?ids=${sessionIds.join(',')}` : ''
-
   const rankBg =
     index < 3 ? 'rgba(239,68,68,0.1)' : index < 10 ? 'rgba(245,158,11,0.1)' : 'var(--surface-3)'
   const rankColor = index < 3 ? 'var(--danger)' : index < 10 ? 'var(--warning)' : 'var(--text-3)'
 
   return (
     <Link
-      to={`/questions/${question.id}${idsParam}`}
+      to={`/questions/${question.id}${sessionQuery}`}
       className="animate-fade-in card card-interactive"
       style={{
         display: 'flex',
@@ -537,7 +536,8 @@ export default function WeakPoints() {
     return sorted
   }, [weakItems, selectedModule, sortMode])
 
-  const sessionIds = displayItems.map(({ question: q }) => q.id)
+  const sessionIds = useMemo(() => displayItems.map(({ question: q }) => q.id), [displayItems])
+  const sessionQuery = useMemo(() => createQuestionSessionQuery(sessionIds), [sessionIds])
 
   const handleMarkAllMastered = async () => {
     if (displayItems.length === 0) return
@@ -595,7 +595,7 @@ export default function WeakPoints() {
 
         {weakItems.length > 0 && sessionIds.length > 0 && (
           <div style={{ flexShrink: 0 }}>
-            <Link to={`/questions/${sessionIds[0]}?ids=${sessionIds.join(',')}`}>
+            <Link to={`/questions/${sessionIds[0]}${sessionQuery}`}>
               <Button
                 variant="primary"
                 size="sm"
@@ -727,7 +727,7 @@ export default function WeakPoints() {
                 lastUpdated={r.lastUpdated}
                 reviewCount={r.reviewCount}
                 index={i}
-                sessionIds={sessionIds}
+                sessionQuery={sessionQuery}
               />
             ))}
           </div>
