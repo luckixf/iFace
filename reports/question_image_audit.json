@@ -1,9 +1,10 @@
 {
   "summary": {
-    "questions_scanned": 7213,
-    "image_questions": 84,
-    "image_refs": 101,
-    "asset_files": 101,
+    "questions_scanned": 7192,
+    "image_questions": 200,
+    "image_refs": 222,
+    "answer_image_refs": 7,
+    "asset_files": 222,
     "unreferenced_assets": 0,
     "issues": 0,
     "errors": 0,

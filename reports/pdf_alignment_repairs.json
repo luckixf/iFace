@@ -1,0 +1,47 @@
+{
+  "summary": {
+    "repair_count": 6,
+    "repairs_by_code": {
+      "attach_answer_pdf_image": 5,
+      "manual_pdf_source_anomaly_fix": 1
+    }
+  },
+  "repairs": [
+    {
+      "code": "attach_answer_pdf_image",
+      "question_id": "highway-mock-exams-2026-a404f460-q009",
+      "file": "highway/mock-exams/highway-mock-exams-2026-a404f460.json",
+      "detail": "/question-assets/construction/highway/mock-exams/highway-mock-exams-2026-a404f460/q009-analysis-1.webp"
+    },
+    {
+      "code": "attach_answer_pdf_image",
+      "question_id": "highway-mock-exams-2026-dbc526e1-q013",
+      "file": "highway/mock-exams/highway-mock-exams-2026-dbc526e1.json",
+      "detail": "/question-assets/construction/highway/mock-exams/highway-mock-exams-2026-dbc526e1/q013-analysis-1.webp"
+    },
+    {
+      "code": "manual_pdf_source_anomaly_fix",
+      "question_id": "management-chapters-2-1-e3d9a3f4-q077",
+      "file": "management/chapters/management-chapters-2-1-e3d9a3f4.json",
+      "detail": "source answer belongs to next orphan question"
+    },
+    {
+      "code": "attach_answer_pdf_image",
+      "question_id": "management-mock-exams-2026-ab45bab0-q001",
+      "file": "management/mock-exams/management-mock-exams-2026-ab45bab0.json",
+      "detail": "/question-assets/construction/management/mock-exams/management-mock-exams-2026-ab45bab0/q001-analysis-1.webp"
+    },
+    {
+      "code": "attach_answer_pdf_image",
+      "question_id": "management-mock-exams-2026-ca9a7408-q076",
+      "file": "management/mock-exams/management-mock-exams-2026-ca9a7408.json",
+      "detail": "/question-assets/construction/management/mock-exams/management-mock-exams-2026-ca9a7408/q076-analysis-1.webp,/question-assets/construction/management/mock-exams/management-mock-exams-2026-ca9a7408/q076-analysis-2.webp,/question-assets/construction/management/mock-exams/management-mock-exams-2026-ca9a7408/q076-analysis-3.webp"
+    },
+    {
+      "code": "attach_answer_pdf_image",
+      "question_id": "regulations-mock-exams-2026-e1b952e8-q036",
+      "file": "regulations/mock-exams/regulations-mock-exams-2026-e1b952e8.json",
+      "detail": "/question-assets/construction/regulations/mock-exams/regulations-mock-exams-2026-e1b952e8/q036-analysis-1.webp"
+    }
+  ]
+}

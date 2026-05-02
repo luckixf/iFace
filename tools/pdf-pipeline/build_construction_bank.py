@@ -113,6 +113,7 @@ QUESTION_RE = re.compile(r"^(\d{1,3})\s*[.．、](?!\d)\s*(.*)$")
 OPTION_RE = re.compile(r"^([A-E])\s*[.．、]\s*(.*)$")
 ANSWER_RE = re.compile(r"^(?:参考答案|答案)\s*[:：]\s*(.*)$")
 ANALYSIS_RE = re.compile(r"^(?:【解析】|解析\s*[:：])\s*(.*)$")
+CHOICE_STEM_BLANK_RE = re.compile(r"(?:\(\s*\)|\uff08\s*\uff09)")
 MAJOR_ANALYSIS_RE = re.compile(r"^\d+\s*[.．、](?!\d)(?:\s*.*)?$")
 PURE_MAJOR_ANALYSIS_RE = re.compile(r"^\d+\s*[.．、](?!\d)$")
 SUB_ANALYSIS_RE = re.compile(
@@ -550,11 +551,11 @@ def iter_page_image_rects(page: fitz.Page) -> Iterable[fitz.Rect]:
 def is_significant_image_rect(page: fitz.Page, rect: fitz.Rect) -> bool:
     page_area = page.rect.width * page.rect.height
     area = rect.width * rect.height
-    if area < page_area * 0.02:
+    if area < page_area * 0.003:
         return False
-    if rect.width < 120 or rect.height < 50:
+    if rect.width < 45 or rect.height < 30:
         return False
-    if rect.y1 < 80:
+    if rect.y1 < 40:
         return False
     return True
 
@@ -655,6 +656,36 @@ def detect_question_type(text: str) -> str | None:
     if "问答题" in text or "案例分析题" in text or "解答题" in text:
         return "essay"
     return None
+
+
+def looks_like_choice_question_start(text: str) -> bool:
+    return bool(CHOICE_STEM_BLANK_RE.search(normalize_text(text)))
+
+
+def looks_like_numbered_analysis_item(text: str) -> bool:
+    normalized = normalize_text(text).lstrip()
+    if re.match(r"^[A-E]\s*(?:选项|项|正确|错误)", normalized):
+        return True
+    if re.match(r"^[（(]\d+[）)]", normalized):
+        return True
+    if re.match(r"^[①②③④⑤⑥⑦⑧⑨]", normalized):
+        return True
+    return False
+
+
+def should_start_choice_question_from_numbered_line(
+    number: int,
+    current_number: int,
+    text: str,
+    current_section: str,
+) -> bool:
+    if current_section != "analysis":
+        return True
+    if looks_like_choice_question_start(text):
+        return True
+    if number == current_number + 1 and not looks_like_numbered_analysis_item(text):
+        return True
+    return False
 
 
 def starts_new_stem_paragraph(text: str) -> bool:
@@ -902,7 +933,12 @@ def parse_pdf(branch: SubjectBranch, group: SourceGroup, pdf_path: Path, file_sl
                     if current_question.question_type == "essay":
                         should_start = number > current_question.number
                     elif current_question.answer_key or current_question.analysis_lines:
-                        should_start = True
+                        should_start = should_start_choice_question_from_numbered_line(
+                            number,
+                            current_question.number,
+                            rest,
+                            current_section,
+                        )
 
                 if should_start:
                     close_image_span(line.y)

@@ -121,6 +121,7 @@ REMOVE_QUESTION_IDS = {
     # recoverable image/options payload in the current JSON/assets.
     "highway-chapters-14-2-6122847a-q005",
     "highway-chapters-7-2-ee50e8ca-q014",
+    "management-chapters-5-4-8db3b879-q001",
     "management-mock-exams-2026-16dbe10e-q038",
     "regulations-chapters-7-1-0c4f34a3-q038",
 }
@@ -137,11 +138,70 @@ MANUAL_STEM_MARKER_TRIM_IDS = {
     "regulations-mock-exams-2026-e4ab4cd2-q064",
 }
 
+MANUAL_ANSWER_MARKER_TRIM_IDS = {
+    "regulations-chapters-1-7-9fb4e13f-q008",
+    "regulations-chapters-2-3-9451d216-q044",
+    "regulations-chapters-3-2-b940a622-q014",
+    "regulations-mock-exams-2026-6b13bdaf-q047",
+    "regulations-mock-exams-2026-6b13bdaf-q071",
+    "regulations-mock-exams-2026-c2287877-q030",
+    "regulations-past-exams-2024-6-2-a-333dfc9d-q024",
+}
+
 MANUAL_OPTION_TEXT_OVERRIDES: dict[str, dict[str, str]] = {
     "management-past-exams-2025-5-10-bfd83d29-q041": {
         "D": "\u51c6\u5907\u4e0e\u7ed3\u675f\u5de5\u4f5c\u65f6\u95f4",
     },
 }
+
+MANUAL_OPTION_KEY_REMOVALS: dict[str, set[str]] = {
+    # The PDF parser swallowed a short analysis sentence as option E. Keeping it
+    # in the options would reveal the answer before the user submits.
+    "management-mock-exams-2026-64250141-q058": {"E"},
+}
+
+MANUAL_ANSWER_TEXT_OVERRIDES: dict[str, str] = {
+    "regulations-chapters-1-5-74849797-q003": (
+        "## \u6b63\u786e\u7b54\u6848\nC\n\n"
+        "## \u89e3\u6790\n\u5efa\u7b51\u4e1a\uff08\u4e0d\u542b\u7b80\u6613\u8ba1\u7a0e\u90e8\u5206\uff09"
+        "\u589e\u503c\u7a0e\u7a0e\u7387\u4e00\u822c\u4e3a9%\u3002"
+    ),
+    "management-mock-exams-2026-64250141-q058": (
+        "## \u6b63\u786e\u7b54\u6848\nA\n\n"
+        "## \u89e3\u6790\n\u5408\u540c\u8ba2\u7acb\u524d\uff0c"
+        "\u4f01\u4e1a\u5e94\u8fdb\u884c\u5408\u540c\u8bc4\u5ba1\u3002"
+        "\u9009\u9879A\u6b63\u786e\u3002"
+    ),
+    "highway-mock-exams-2026-a404f460-q009": (
+        "## 正确答案\nC\n\n## 解析\n一般跨度隧道对应单洞两车道，选项C正确。"
+    ),
+    "highway-mock-exams-2026-dbc526e1-q013": (
+        "## 正确答案\nD\n\n## 解析\n环形开挖留核心土法属于隧道分部开挖方法，选项D正确。"
+    ),
+    "management-chapters-2-1-e3d9a3f4-q077": (
+        "## 正确答案\nACDE\n\n## 解析\n评标报告应记载开标记录、否决投标的情况说明、经评审的投标人排序、澄清、说明、补正事项纪要等内容；中标通知书不属于评标报告内容。"
+    ),
+    "management-chapters-2-1-e3d9a3f4-q079": (
+        "## 正确答案\nABC\n\n## 解析\n为避免未来产生合同纠纷，合同谈判应重点关注工程内容和范围、合同价款支付、价格调整及工程量变化等内容。"
+    ),
+    "management-mock-exams-2026-04220a54-q079": (
+        "## 正确答案\nACDE\n\n## 解析\n评标报告应记载开标记录、否决投标的情况说明、经评审的投标人排序、澄清、说明、补正事项纪要等内容；中标通知书不属于评标报告内容。"
+    ),
+    "management-mock-exams-2026-7be37361-q072": (
+        "## 正确答案\nABC\n\n## 解析\n为避免未来产生合同纠纷，合同谈判应重点关注工程内容和范围、合同价款支付、价格调整及工程量变化等内容。"
+    ),
+    "management-mock-exams-2026-ab45bab0-q001": (
+        "## 正确答案\nD\n\n## 解析\n采用累加数列错位相减取大差法：第一个施工过程累加数列为2、6、9，第二个施工过程累加数列为3、8、12，流水步距为3天；流水施工工期=3+3+5+4=15天，选项D正确。"
+    ),
+    "management-mock-exams-2026-ca9a7408-q076": (
+        "## 正确答案\nABE\n\n## 解析\n根据《标准施工招标文件》通用合同条款，发包人提供图纸延误、发包人增加合同工作内容、因发包人原因暂停施工后无法按时复工，均可索赔工期、费用和利润，选项A、B、E正确。"
+    ),
+    "regulations-mock-exams-2026-e1b952e8-q036": (
+        "## 正确答案\nD\n\n## 解析\n授权委托书未写明特别授权的，诉讼代理人仅享有一般程序性诉讼权利，不能代为承认、放弃、变更诉讼请求或进行和解等实体处分行为，选项D正确。"
+    ),
+}
+
+MISSING_ANALYSIS_NOTICE = "\u539f PDF \u672a\u63d0\u4f9b\u89e3\u6790\u3002"
 
 
 @dataclass
@@ -297,6 +357,29 @@ def trim_answer_spill(question: dict[str, Any], file: str, repairs: list[Repair]
         repairs.append(Repair("trim_answer_spill", qid, file, f"trimmed answer before question {next_num}"))
 
 
+def manual_trim_answer_to_question_marker(
+    question: dict[str, Any],
+    file: str,
+    repairs: list[Repair],
+) -> None:
+    qid = str(question.get("id", ""))
+    if qid not in MANUAL_ANSWER_MARKER_TRIM_IDS:
+        return
+
+    answer = str(question.get("answer", ""))
+    pattern = re.compile(
+        rf"(?m)\n\s*\d{{1,3}}\s*[\.\u3001\uff0e]\s*[^\n]{{0,180}}{QUESTION_BLANK_RE}"
+    )
+    match = pattern.search(answer)
+    if not match:
+        return
+
+    new_answer = clean_space(answer[: match.start()])
+    if new_answer and new_answer != answer:
+        question["answer"] = new_answer
+        repairs.append(Repair("manual_trim_answer_marker", qid, file, "trimmed reviewed next-question spill"))
+
+
 def asset_paths_for_question(file: str, qid: str) -> list[str]:
     qnum = qnum_from_id(qid)
     if qnum is None:
@@ -389,6 +472,62 @@ def apply_manual_option_text_overrides(
 
     if changed:
         repairs.append(Repair("manual_option_text_override", qid, file, ",".join(changed)))
+
+
+def apply_manual_option_key_removals(
+    question: dict[str, Any],
+    file: str,
+    repairs: list[Repair],
+) -> None:
+    qid = str(question.get("id", ""))
+    keys = MANUAL_OPTION_KEY_REMOVALS.get(qid)
+    options = question.get("options")
+    if not keys or not isinstance(options, list):
+        return
+
+    kept = [
+        option
+        for option in options
+        if not isinstance(option, dict) or str(option.get("key", "")) not in keys
+    ]
+    if len(kept) == len(options):
+        return
+
+    question["options"] = kept
+    repairs.append(Repair("manual_option_key_removal", qid, file, ",".join(sorted(keys))))
+
+
+def apply_manual_answer_text_overrides(
+    question: dict[str, Any],
+    file: str,
+    repairs: list[Repair],
+) -> None:
+    qid = str(question.get("id", ""))
+    answer = MANUAL_ANSWER_TEXT_OVERRIDES.get(qid)
+    if answer is None or question.get("answer") == answer:
+        return
+
+    question["answer"] = answer
+    repairs.append(Repair("manual_answer_text_override", qid, file, "reviewed parser spillover"))
+
+
+def add_missing_analysis_notice(
+    question: dict[str, Any],
+    file: str,
+    repairs: list[Repair],
+) -> None:
+    qid = str(question.get("id", ""))
+    qtype = str(question.get("type", ""))
+    answer = clean_space(question.get("answer", ""))
+    if qtype not in {"single", "multiple"}:
+        return
+    if not answer.startswith(f"## {CORRECT_ANSWER}"):
+        return
+    if f"## {ANALYSIS}" in answer:
+        return
+
+    question["answer"] = f"{answer}\n\n## {ANALYSIS}\n{MISSING_ANALYSIS_NOTICE}"
+    repairs.append(Repair("add_missing_analysis_notice", qid, file, "source PDF has no analysis text"))
 
 
 def repair_answer_and_type(
@@ -557,8 +696,11 @@ def repair(dry_run: bool) -> list[Repair]:
             trim_stem_spill(question, rel_file, repairs)
             manual_trim_stem_to_question_marker(question, rel_file, repairs)
             trim_answer_spill(question, rel_file, repairs)
+            manual_trim_answer_to_question_marker(question, rel_file, repairs)
             dedupe_and_fill_options(question, rel_file, repairs)
             apply_manual_option_text_overrides(question, rel_file, repairs)
+            apply_manual_option_key_removals(question, rel_file, repairs)
+            apply_manual_answer_text_overrides(question, rel_file, repairs)
             apply_manual_image_removals(question, rel_file, repairs)
             allow_inference = any(
                 repair.question_id == qid
@@ -567,6 +709,7 @@ def repair(dry_run: bool) -> list[Repair]:
             )
             normalize_known_ocr_text(question, rel_file, repairs)
             repair_answer_and_type(question, rel_file, repairs, allow_inference=allow_inference)
+            add_missing_analysis_notice(question, rel_file, repairs)
             kept.append(question)
 
         if len(kept) != len(questions):

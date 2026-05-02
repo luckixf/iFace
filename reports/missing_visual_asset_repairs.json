@@ -1,0 +1,37 @@
+{
+  "summary": {
+    "repairs": 3,
+    "by_code": {
+      "attach_post_answer_stem_visual": 3
+    }
+  },
+  "repairs": [
+    {
+      "code": "attach_post_answer_stem_visual",
+      "question_id": "management-chapters-3-4-20d1377c-q006",
+      "file": "management/chapters/management-chapters-3-4-20d1377c.json",
+      "detail": "attached reviewed post-answer figure crop",
+      "images": [
+        "/question-assets/construction/management/chapters/management-chapters-3-4-20d1377c/q006-1.webp"
+      ]
+    },
+    {
+      "code": "attach_post_answer_stem_visual",
+      "question_id": "management-chapters-5-3-d6b34980-q014",
+      "file": "management/chapters/management-chapters-5-3-d6b34980.json",
+      "detail": "attached reviewed post-answer figure crop",
+      "images": [
+        "/question-assets/construction/management/chapters/management-chapters-5-3-d6b34980/q014-1.webp"
+      ]
+    },
+    {
+      "code": "attach_post_answer_stem_visual",
+      "question_id": "management-mock-exams-2026-ca9a7408-q070",
+      "file": "management/mock-exams/management-mock-exams-2026-ca9a7408.json",
+      "detail": "attached reviewed post-answer figure crop",
+      "images": [
+        "/question-assets/construction/management/mock-exams/management-mock-exams-2026-ca9a7408/q070-1.webp"
+      ]
+    }
+  ]
+}

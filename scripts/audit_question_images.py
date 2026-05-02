@@ -14,6 +14,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
+import re
 
 try:
     from PIL import Image
@@ -42,6 +43,8 @@ IMAGE_CUES = (
     "\u7ed3\u6784",
     "\u6846\u67b6",
 )
+
+MARKDOWN_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 
 
 @dataclass
@@ -76,6 +79,15 @@ def question_has_image_cue(question: str) -> bool:
     return any(cue in question for cue in IMAGE_CUES)
 
 
+def markdown_image_refs(markdown: Any) -> list[str]:
+    refs: list[str] = []
+    for match in MARKDOWN_IMAGE_RE.finditer(str(markdown or "")):
+        ref = match.group(1).strip()
+        if ref.startswith("/question-assets/construction/"):
+            refs.append(ref)
+    return refs
+
+
 def image_dhash(path: Path) -> int | None:
     if Image is None:
         return None
@@ -105,6 +117,8 @@ def collect_referenced_images(files: list[tuple[Path, list[dict[str, Any]]]]) ->
         for question in questions:
             for image in question.get("questionImages") or []:
                 refs.add(public_image_path_to_asset(image).resolve())
+            for image in markdown_image_refs(question.get("answer", "")):
+                refs.add(public_image_path_to_asset(image).resolve())
     return refs
 
 
@@ -116,24 +130,28 @@ def audit(prune_unreferenced: bool) -> tuple[list[ImageIssue], dict[str, Any]]:
     question_count = 0
     image_question_count = 0
     image_ref_count = 0
+    answer_image_ref_count = 0
 
     for path, questions in files:
         rel_file = path.relative_to(ROOT).as_posix()
         for question in questions:
             question_count += 1
             image_refs = question.get("questionImages") or []
-            if not image_refs:
+            answer_image_refs = markdown_image_refs(question.get("answer", ""))
+            all_image_refs = [*image_refs, *answer_image_refs]
+            if not all_image_refs:
                 continue
 
             image_question_count += 1
-            image_ref_count += len(image_refs)
+            image_ref_count += len(all_image_refs)
+            answer_image_ref_count += len(answer_image_refs)
             question_text = str(question.get("question", ""))
             question_id = str(question.get("id", ""))
             question_type = str(question.get("type", ""))
             snippet = " ".join(question_text.split())[:180]
-            asset_paths = [public_image_path_to_asset(image) for image in image_refs]
+            asset_paths = [public_image_path_to_asset(image) for image in all_image_refs]
 
-            missing = [image for image, asset in zip(image_refs, asset_paths) if not asset.exists()]
+            missing = [image for image, asset in zip(all_image_refs, asset_paths) if not asset.exists()]
             if missing:
                 issues.append(
                     ImageIssue(
@@ -148,7 +166,7 @@ def audit(prune_unreferenced: bool) -> tuple[list[ImageIssue], dict[str, Any]]:
                 )
 
             has_cue = question_has_image_cue(question_text)
-            if not has_cue:
+            if image_refs and not has_cue:
                 issues.append(
                     ImageIssue(
                         severity="review",
@@ -175,7 +193,7 @@ def audit(prune_unreferenced: bool) -> tuple[list[ImageIssue], dict[str, Any]]:
                 )
 
             hashes: list[tuple[str, int]] = []
-            for image_ref, asset_path in zip(image_refs, asset_paths):
+            for image_ref, asset_path in zip(all_image_refs, asset_paths):
                 digest = image_dhash(asset_path)
                 if digest is not None:
                     hashes.append((image_ref, digest))
@@ -226,6 +244,7 @@ def audit(prune_unreferenced: bool) -> tuple[list[ImageIssue], dict[str, Any]]:
         "questions_scanned": question_count,
         "image_questions": image_question_count,
         "image_refs": image_ref_count,
+        "answer_image_refs": answer_image_ref_count,
         "asset_files": len(existing_assets) if not prune_unreferenced else len(referenced_assets),
         "unreferenced_assets": len(orphan_assets),
         "issues": len(issues),
@@ -249,6 +268,7 @@ def write_reports(issues: list[ImageIssue], summary: dict[str, Any]) -> None:
         f"- Questions scanned: {summary['questions_scanned']}",
         f"- Questions with images: {summary['image_questions']}",
         f"- Referenced images: {summary['image_refs']}",
+        f"- Answer image refs: {summary['answer_image_refs']}",
         f"- Asset files: {summary['asset_files']}",
         f"- Unreferenced assets: {summary['unreferenced_assets']}",
         f"- Issues: {summary['issues']}",
@@ -286,6 +306,7 @@ def main() -> int:
     print(f"questions={summary['questions_scanned']}")
     print(f"image_questions={summary['image_questions']}")
     print(f"image_refs={summary['image_refs']}")
+    print(f"answer_image_refs={summary['answer_image_refs']}")
     print(f"asset_files={summary['asset_files']}")
     print(f"unreferenced_assets={summary['unreferenced_assets']}")
     print(f"issues={summary['issues']}")

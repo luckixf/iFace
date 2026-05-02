@@ -322,6 +322,14 @@ export function useQuestion(id: string | undefined): {
           return
         }
 
+        if (!id.startsWith('custom_')) {
+          const builtin = await getBuiltinQuestionById(id)
+          if (builtin) {
+            setQuestion(builtin)
+            return
+          }
+        }
+
         const stored = await getStoredQuestionById(id)
         if (stored) {
           setQuestion(stored)

@@ -1,9 +1,10 @@
 # Question Image Audit
 
-- Questions scanned: 7213
-- Questions with images: 84
-- Referenced images: 101
-- Asset files: 101
+- Questions scanned: 7192
+- Questions with images: 200
+- Referenced images: 222
+- Answer image refs: 7
+- Asset files: 222
 - Unreferenced assets: 0
 - Issues: 0
 - Errors: 0

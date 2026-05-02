@@ -1,16 +1,71 @@
 {
   "summary": {
-    "repair_count": 1,
+    "repair_count": 10,
     "repairs_by_code": {
-      "manual_remove_question_image": 1
+      "manual_answer_text_override": 9,
+      "manual_trim_answer_marker": 1
     }
   },
   "repairs": [
     {
-      "code": "manual_remove_question_image",
-      "question_id": "management-past-exams-2024-6-2-b-a100d7a1-q015",
-      "file": "management/past-exams/management-past-exams-2024-6-2-b-a100d7a1.json",
-      "detail": "image is an explanation/reference table, not a stem figure needed to answer"
+      "code": "manual_answer_text_override",
+      "question_id": "highway-mock-exams-2026-a404f460-q009",
+      "file": "highway/mock-exams/highway-mock-exams-2026-a404f460.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "highway-mock-exams-2026-dbc526e1-q013",
+      "file": "highway/mock-exams/highway-mock-exams-2026-dbc526e1.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "management-chapters-2-1-e3d9a3f4-q077",
+      "file": "management/chapters/management-chapters-2-1-e3d9a3f4.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "management-chapters-2-1-e3d9a3f4-q079",
+      "file": "management/chapters/management-chapters-2-1-e3d9a3f4.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "management-mock-exams-2026-04220a54-q079",
+      "file": "management/mock-exams/management-mock-exams-2026-04220a54.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "management-mock-exams-2026-7be37361-q072",
+      "file": "management/mock-exams/management-mock-exams-2026-7be37361.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "management-mock-exams-2026-ab45bab0-q001",
+      "file": "management/mock-exams/management-mock-exams-2026-ab45bab0.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "management-mock-exams-2026-ca9a7408-q076",
+      "file": "management/mock-exams/management-mock-exams-2026-ca9a7408.json",
+      "detail": "reviewed parser spillover"
+    },
+    {
+      "code": "manual_trim_answer_marker",
+      "question_id": "regulations-mock-exams-2026-6b13bdaf-q071",
+      "file": "regulations/mock-exams/regulations-mock-exams-2026-6b13bdaf.json",
+      "detail": "trimmed reviewed next-question spill"
+    },
+    {
+      "code": "manual_answer_text_override",
+      "question_id": "regulations-mock-exams-2026-e1b952e8-q036",
+      "file": "regulations/mock-exams/regulations-mock-exams-2026-e1b952e8.json",
+      "detail": "reviewed parser spillover"
     }
   ]
 }
