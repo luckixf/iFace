@@ -209,9 +209,17 @@ export function buildQuestionContext(
   module: string,
   difficulty: number,
   referenceAnswer?: string,
+  options?: Array<{ key: string; text: string }>,
+  correctAnswers?: string[],
 ): string {
   const diffLabel = ['', '基础', '综合', '案例'][difficulty] ?? '未知'
   let ctx = `**当前刷题上下文**\n- 模块：${module}\n- 难度：${diffLabel}\n- 题目：${question}`
+  if (options?.length) {
+    ctx += `\n\n**选项**\n${options.map((option) => `${option.key}. ${option.text}`).join('\n')}`
+  }
+  if (correctAnswers?.length) {
+    ctx += `\n\n**正确选项**\n${correctAnswers.join(' / ')}`
+  }
   if (referenceAnswer) {
     ctx += `\n\n**参考答案（系统提供）**\n${referenceAnswer}`
   }
@@ -423,6 +431,13 @@ export function useAIStore() {
         label: '作答框架',
         icon: '📝',
         prompt: '请给我一个清晰的作答框架和结构，让我能有条理地回答这道题。',
+      },
+      {
+        id: 'option-analysis',
+        label: '逐项解释',
+        icon: '🔍',
+        prompt:
+          '请逐项解释本题每个选项为什么正确或错误。请按 A/B/C/D/E/F/G 的顺序说明，先给出“正确/错误/不确定”的结论，再用考试考点解释原因，并指出容易混淆的表述。如果当前还没有参考答案，请明确说明这是基于题干和选项的初步判断。',
       },
       ...(hasAnswer
         ? [

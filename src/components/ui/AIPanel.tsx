@@ -263,6 +263,12 @@ function EmptyChat({ onQuickAction }: { onQuickAction: (prompt: string) => void 
       prompt: '请给我一个清晰的作答框架和结构，让我能有条理地回答这道题。',
     },
     {
+      icon: '🔍',
+      label: '逐项解释',
+      prompt:
+        '请逐项解释本题每个选项为什么正确或错误。请按 A/B/C/D/E/F/G 的顺序说明，先给出“正确/错误/不确定”的结论，再用考试考点解释原因，并指出容易混淆的表述。如果当前还没有参考答案，请明确说明这是基于题干和选项的初步判断。',
+    },
+    {
       icon: '📖',
       label: '讲解知识点',
       prompt: '请帮我深入讲解这道题涉及的核心知识点，从原理到应用，让我真正理解而不只是背答案。',
@@ -622,6 +628,8 @@ export function AIPanel({
       question.module,
       question.difficulty,
       answerVisible ? question.answer : undefined,
+      question.options,
+      answerVisible ? question.correctAnswers : undefined,
     )
 
     if (messages.length === 0) {

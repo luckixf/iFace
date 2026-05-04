@@ -204,7 +204,13 @@ function SessionProgress({ current, total, onExit }: SessionProgressProps) {
 
 // ─── Shortcut Hints ───────────────────────────────────────────────────────────
 
-function ShortcutHints({ answerVisible }: { answerVisible: boolean }) {
+function ShortcutHints({
+  answerVisible,
+  isChoiceQuestion,
+}: {
+  answerVisible: boolean
+  isChoiceQuestion: boolean
+}) {
   return (
     <div
       style={{
@@ -217,10 +223,18 @@ function ShortcutHints({ answerVisible }: { answerVisible: boolean }) {
       }}
     >
       {!answerVisible && (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Kbd>Space</Kbd>
-          <span>查看答案</span>
-        </span>
+        <>
+          {isChoiceQuestion && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Kbd>1-7</Kbd>
+              <span>选择选项</span>
+            </span>
+          )}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Kbd>Space</Kbd>
+            <span>查看答案</span>
+          </span>
+        </>
       )}
       {answerVisible && (
         <>
@@ -355,7 +369,6 @@ function MyAnswerInput({
   const [feedback, setFeedback] = useState<string | null>(null)
   const [streamingFeedback, setStreamingFeedback] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const isStreaming = streaming && streamingQuestionId === `${questionId}_selfcheck`
   const canCompareWithAnswer = answerVisible && isAiEnabled && answerText.trim().length > 0
@@ -369,13 +382,6 @@ function MyAnswerInput({
     setError(null)
     onDraftChange?.('')
   }, [questionId, onDraftChange])
-
-  // Auto-focus textarea on mount / question change
-  useEffect(() => {
-    if (!collapsed && !feedback) {
-      setTimeout(() => textareaRef.current?.focus(), 80)
-    }
-  }, [collapsed, feedback])
 
   const handleSubmit = useCallback(async () => {
     if (!text.trim() || isStreaming) return
@@ -435,7 +441,6 @@ function MyAnswerInput({
     setText('')
     setError(null)
     onDraftChange?.('')
-    setTimeout(() => textareaRef.current?.focus(), 60)
   }, [onDraftChange])
 
   const displayFeedback = feedback ?? (streamingFeedback || null)
@@ -603,7 +608,6 @@ function MyAnswerInput({
             }}
           >
             <textarea
-              ref={textareaRef}
               value={text}
               onChange={(e) => {
                 setText(e.target.value)
@@ -1268,6 +1272,7 @@ export default function QuestionDetail() {
   const currentStatus = id ? getStatus(id) : 'unlearned'
   const record = id ? getRecord(id) : undefined
   const isChoiceQuestion = question?.type === 'single' || question?.type === 'multiple'
+  const isEssayQuestion = question?.type === 'essay'
   const isMultipleChoice = question?.type === 'multiple'
   const correctAnswers = question?.correctAnswers ?? []
   const selectedAnswerSet = useMemo(() => new Set(selectedAnswers), [selectedAnswers])
@@ -1281,7 +1286,9 @@ export default function QuestionDetail() {
     studyMode !== 'answer-first' ||
     (isChoiceQuestion && hasChoiceOptions
       ? selectedAnswers.length > 0
-      : selfAnswerDraft.trim().length > 0)
+      : isEssayQuestion
+        ? selfAnswerDraft.trim().length > 0
+        : true)
 
   const handleOptionToggle = useCallback(
     (optionKey: string) => {
@@ -1352,9 +1359,21 @@ export default function QuestionDetail() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      const tag = (document.activeElement as HTMLElement)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      const activeElement = document.activeElement as HTMLElement | null
+      const tag = activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || activeElement?.isContentEditable) {
+        return
+      }
       if (aiDrawerOpen) return // don't interfere with AI chat
+      if (e.altKey || e.ctrlKey || e.metaKey) return
+
+      if (!answerVisible && isChoiceQuestion && /^[1-7]$/.test(e.key)) {
+        const option = question?.options?.[Number(e.key) - 1]
+        if (!option) return
+        e.preventDefault()
+        handleOptionToggle(option.key)
+        return
+      }
 
       switch (e.key) {
         case ' ':
@@ -1384,7 +1403,18 @@ export default function QuestionDetail() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [answerVisible, handleRevealAnswer, handleSetStatus, navigateTo, nextId, prevId, aiDrawerOpen])
+  }, [
+    aiDrawerOpen,
+    answerVisible,
+    handleOptionToggle,
+    handleRevealAnswer,
+    handleSetStatus,
+    isChoiceQuestion,
+    navigateTo,
+    nextId,
+    prevId,
+    question?.options,
+  ])
 
   // ── Loading ──────────────────────────────────────────────────────────────
 
@@ -1431,10 +1461,10 @@ export default function QuestionDetail() {
   const isAiEnabled = aiConfig.enabled && aiConfig.apiKey.trim().length > 0
 
   // Derived from studyMode
-  const showAnswerInputAbove = studyMode === 'answer-first'
-  const showAnswerInputInside = studyMode === 'answer-alongside'
-  const hideAnswerInput = studyMode === 'memory-only'
   const isMemoryMode = studyMode === 'memory-only'
+  const showAnswerInputAbove = isEssayQuestion && studyMode === 'answer-first'
+  const showAnswerInputInside = isEssayQuestion && studyMode === 'answer-alongside'
+  const hideAnswerInput = !isEssayQuestion || isMemoryMode
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -1693,9 +1723,10 @@ export default function QuestionDetail() {
                     : '单选作答，先选答案再查看解析。'}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {question.options.map((option) => {
+                {question.options.map((option, index) => {
                   const selected = selectedAnswerSet.has(option.key)
                   const correct = correctAnswerSet.has(option.key)
+                  const shortcutKey = index < 7 ? String(index + 1) : null
 
                   let borderColor = 'var(--border-subtle)'
                   let background = 'var(--surface-2)'
@@ -1754,6 +1785,30 @@ export default function QuestionDetail() {
                       >
                         {option.key}
                       </span>
+                      {!answerVisible && shortcutKey && (
+                        <span
+                          aria-hidden="true"
+                          title={`按 ${shortcutKey} 选择`}
+                          style={{
+                            minWidth: 18,
+                            height: 18,
+                            borderRadius: 6,
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--surface)',
+                            color: 'var(--text-3)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            fontFamily: 'var(--font-mono)',
+                            marginTop: 3,
+                          }}
+                        >
+                          {shortcutKey}
+                        </span>
+                      )}
                       <span style={{ lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{option.text}</span>
                     </button>
                   )
@@ -2091,7 +2146,7 @@ export default function QuestionDetail() {
 
         {/* Keyboard shortcuts */}
         <div className="animate-fade-in stagger-3">
-          <ShortcutHints answerVisible={answerVisible} />
+          <ShortcutHints answerVisible={answerVisible} isChoiceQuestion={isChoiceQuestion} />
         </div>
 
         {/* Navigation */}
