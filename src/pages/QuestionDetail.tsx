@@ -1723,10 +1723,9 @@ export default function QuestionDetail() {
                     : '单选作答，先选答案再查看解析。'}
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {question.options.map((option, index) => {
+                {question.options.map((option) => {
                   const selected = selectedAnswerSet.has(option.key)
                   const correct = correctAnswerSet.has(option.key)
-                  const shortcutKey = index < 7 ? String(index + 1) : null
 
                   let borderColor = 'var(--border-subtle)'
                   let background = 'var(--surface-2)'
@@ -1785,30 +1784,6 @@ export default function QuestionDetail() {
                       >
                         {option.key}
                       </span>
-                      {!answerVisible && shortcutKey && (
-                        <span
-                          aria-hidden="true"
-                          title={`按 ${shortcutKey} 选择`}
-                          style={{
-                            minWidth: 18,
-                            height: 18,
-                            borderRadius: 6,
-                            border: '1px solid var(--border-subtle)',
-                            background: 'var(--surface)',
-                            color: 'var(--text-3)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            fontSize: 10,
-                            fontWeight: 700,
-                            fontFamily: 'var(--font-mono)',
-                            marginTop: 3,
-                          }}
-                        >
-                          {shortcutKey}
-                        </span>
-                      )}
                       <span style={{ lineHeight: 1.65, whiteSpace: 'pre-wrap' }}>{option.text}</span>
                     </button>
                   )
