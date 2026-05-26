@@ -59,8 +59,8 @@ export function Navbar() {
           height: 'var(--navbar-h)',
           borderBottom: scrolled ? '1px solid var(--border-subtle)' : '1px solid transparent',
           background: scrolled
-            ? 'linear-gradient(90deg, rgba(255,255,255,0.82), rgba(255,239,247,0.78))'
-            : 'linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0))',
+            ? 'var(--surface-glass)'
+            : 'linear-gradient(180deg, var(--surface-glass), transparent)',
           backdropFilter: 'saturate(180%) blur(22px)',
           WebkitBackdropFilter: 'saturate(180%) blur(22px)',
           transition: 'background 0.25s, border-color 0.25s, backdrop-filter 0.25s',
@@ -188,7 +188,7 @@ export function Navbar() {
                 height: 32,
                 borderRadius: 999,
                 border: '1px solid var(--border-subtle)',
-                background: 'rgba(255,255,255,0.5)',
+                background: 'var(--surface-2)',
                 color: 'var(--text-2)',
                 display: 'flex',
                 alignItems: 'center',
@@ -231,7 +231,7 @@ export function Navbar() {
                 height: 32,
                 borderRadius: 999,
                 border: '1px solid var(--border-subtle)',
-                background: 'rgba(255,255,255,0.5)',
+                background: 'var(--surface-2)',
                 color: 'var(--text-2)',
                 display: 'flex',
                 alignItems: 'center',

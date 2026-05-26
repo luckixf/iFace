@@ -106,22 +106,22 @@
   --primary: #ff8dc2;
   --primary-hover: #ff6daf;
   --primary-rgb: 255, 141, 194;
-  --primary-light: rgba(255, 141, 194, 0.14);
-  --primary-light-hover: rgba(255, 141, 194, 0.24);
+  --primary-light: rgba(255, 141, 194, 0.18);
+  --primary-light-hover: rgba(255, 141, 194, 0.3);
   --accent: #b6a1ff;
   --accent-rgb: 182, 161, 255;
 
-  --surface: rgba(53, 32, 52, 0.82);
-  --surface-2: rgba(72, 42, 68, 0.76);
-  --surface-3: rgba(93, 52, 84, 0.72);
-  --surface-glass: rgba(48, 30, 48, 0.76);
+  --surface: rgba(37, 24, 38, 0.94);
+  --surface-2: rgba(54, 34, 55, 0.92);
+  --surface-3: rgba(72, 43, 70, 0.9);
+  --surface-glass: rgba(37, 24, 38, 0.86);
 
-  --border: rgba(255, 179, 215, 0.28);
-  --border-subtle: rgba(255, 207, 230, 0.18);
+  --border: rgba(255, 188, 222, 0.34);
+  --border-subtle: rgba(255, 214, 235, 0.22);
 
-  --text: #fff3fa;
-  --text-2: #f0c6db;
-  --text-3: #d99bb9;
+  --text: #fff8fc;
+  --text-2: #f5d7e7;
+  --text-3: #dca9c4;
 
   --shadow-xs: 0 2px 7px rgba(0, 0, 0, 0.26);
   --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.26), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
@@ -164,12 +164,30 @@ body {
     color 0.25s var(--ease-in-out);
 }
 
+.dark body {
+  background:
+    radial-gradient(circle at 14% 10%, rgba(255, 141, 194, 0.18) 0 7%, transparent 23%),
+    radial-gradient(circle at 82% 8%, rgba(182, 161, 255, 0.16) 0 8%, transparent 25%),
+    radial-gradient(circle at 88% 82%, rgba(120, 215, 255, 0.1) 0 11%, transparent 30%),
+    linear-gradient(135deg, #1c1220 0%, #271727 44%, #211a34 72%, #142634 100%);
+}
+
 body::before,
 body::after {
   position: fixed;
   pointer-events: none;
   content: "";
   z-index: -2;
+}
+
+.dark body::before {
+  opacity: 0.26;
+}
+
+.dark body::after {
+  background:
+    radial-gradient(circle at 34% 34%, rgba(255, 188, 222, 0.2), transparent 20%),
+    radial-gradient(circle at 50% 50%, rgba(255, 141, 194, 0.16), transparent 64%);
 }
 
 body::before {
@@ -314,6 +332,27 @@ body::after {
   box-shadow: var(--shadow-xs);
 }
 
+.dark .card,
+.dark .card-interactive {
+  background:
+    linear-gradient(145deg, rgba(49, 31, 50, 0.96), rgba(37, 24, 38, 0.92)),
+    var(--surface);
+  border-color: rgba(255, 214, 235, 0.2);
+  box-shadow: var(--shadow-sm);
+}
+
+.dark .card::before {
+  background:
+    linear-gradient(120deg, rgba(255, 214, 235, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(255, 141, 194, 0.1), transparent 34%);
+  opacity: 0.72;
+}
+
+.dark .card-interactive:hover {
+  border-color: rgba(255, 141, 194, 0.42);
+  box-shadow: var(--shadow-md);
+}
+
 /* card-hover alias */
 .card-hover {
   transition:
@@ -361,6 +400,13 @@ body::after {
   color: var(--text-2);
   line-height: 1;
   box-shadow: 0 2px 8px rgba(255, 111, 174, 0.1);
+}
+
+.dark .kbd {
+  background: linear-gradient(180deg, rgba(72, 43, 70, 0.96), rgba(49, 31, 50, 0.96));
+  border-color: rgba(255, 188, 222, 0.34);
+  color: var(--text-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
 }
 
 /* ─── Status dot ────────────────────────────────────────────────────────────── */
@@ -734,6 +780,12 @@ body::after {
   box-shadow: 0 0 0 4px var(--primary-light);
 }
 
+.dark .input-base {
+  background: rgba(37, 24, 38, 0.82);
+  border-color: rgba(255, 188, 222, 0.3);
+  color: var(--text);
+}
+
 /* ─── Transition helpers ────────────────────────────────────────────────────── */
 
 .transition-fast {
@@ -782,6 +834,26 @@ body::after {
   background-position: center, right -110px top 70px;
   background-size: cover, min(720px, 58vw) auto;
   background-blend-mode: normal, soft-light;
+}
+
+.dark .kawaii-decor {
+  background-image:
+    linear-gradient(120deg, rgba(28, 18, 32, 0.9), rgba(39, 23, 39, 0.88) 48%, rgba(20, 38, 52, 0.84)),
+    url("/theme/kawaii-study-bg.webp");
+  background-blend-mode: normal, luminosity;
+  opacity: 0.95;
+}
+
+.dark .kawaii-decor::before {
+  background:
+    radial-gradient(circle at 24% 48%, rgba(255, 214, 235, 0.12) 0 29%, transparent 30%),
+    radial-gradient(circle at 48% 35%, rgba(255, 214, 235, 0.16) 0 34%, transparent 35%),
+    radial-gradient(circle at 72% 50%, rgba(255, 214, 235, 0.1) 0 30%, transparent 31%);
+  opacity: 0.38;
+}
+
+.dark .kawaii-decor::after {
+  background: radial-gradient(circle, rgba(255, 141, 194, 0.16), transparent 68%);
 }
 
 .kawaii-decor::before,
@@ -929,6 +1001,22 @@ body::after {
 .btn-ghost:hover,
 .btn-secondary:hover {
   background: rgba(255, 239, 247, 0.9) !important;
+}
+
+.dark .btn-secondary {
+  background: rgba(54, 34, 55, 0.86) !important;
+  border-color: rgba(255, 188, 222, 0.28) !important;
+  color: var(--text) !important;
+}
+
+.dark .btn-ghost {
+  color: var(--text-2) !important;
+}
+
+.dark .btn-ghost:hover,
+.dark .btn-secondary:hover {
+  background: rgba(72, 43, 70, 0.92) !important;
+  color: var(--text) !important;
 }
 
 @media (max-width: 900px) {
