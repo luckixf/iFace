@@ -54,9 +54,19 @@ function ApiAuthFallback() {
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-dvh bg-[var(--surface)]">
+      <div className="app-shell min-h-dvh">
+        <div className="kawaii-decor" aria-hidden="true">
+          <span className="petal petal-1" />
+          <span className="petal petal-2" />
+          <span className="petal petal-3" />
+          <span className="petal petal-4" />
+          <span className="petal petal-5" />
+          <span className="sparkle sparkle-1">✦</span>
+          <span className="sparkle sparkle-2">✧</span>
+          <span className="sparkle sparkle-3">♡</span>
+        </div>
         <Navbar />
-        <main>
+        <main className="app-main">
           <Suspense fallback={<PageLoader />}>
             <Routes>
               {/* Defensive catch for the OAuth callback path in case the

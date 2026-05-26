@@ -58,9 +58,11 @@ export function Navbar() {
           zIndex: 50,
           height: 'var(--navbar-h)',
           borderBottom: scrolled ? '1px solid var(--border-subtle)' : '1px solid transparent',
-          background: scrolled ? 'var(--surface-glass)' : 'transparent',
-          backdropFilter: scrolled ? 'saturate(180%) blur(20px)' : 'none',
-          WebkitBackdropFilter: scrolled ? 'saturate(180%) blur(20px)' : 'none',
+          background: scrolled
+            ? 'linear-gradient(90deg, rgba(255,255,255,0.82), rgba(255,239,247,0.78))'
+            : 'linear-gradient(180deg, rgba(255,255,255,0.5), rgba(255,255,255,0))',
+          backdropFilter: 'saturate(180%) blur(22px)',
+          WebkitBackdropFilter: 'saturate(180%) blur(22px)',
           transition: 'background 0.25s, border-color 0.25s, backdrop-filter 0.25s',
         }}
       >
@@ -89,10 +91,27 @@ export function Navbar() {
           >
             <span
               style={{
+                width: 28,
+                height: 28,
+                borderRadius: 999,
+                background: 'linear-gradient(135deg, #ff91c4, #ffd5e9)',
+                boxShadow: '0 8px 18px rgba(var(--primary-rgb), 0.22)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
                 fontSize: 15,
-                fontWeight: 600,
+                lineHeight: 1,
+              }}
+            >
+              ♡
+            </span>
+            <span
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
                 color: 'var(--text)',
-                letterSpacing: '-0.01em',
+                letterSpacing: '0.01em',
               }}
             >
               建工刷题助手
@@ -116,12 +135,14 @@ export function Navbar() {
                   key={item.path}
                   to={item.path}
                   style={{
-                    padding: '5px 12px',
-                    borderRadius: 8,
+                    padding: '6px 13px',
+                    borderRadius: 999,
                     fontSize: 14,
                     fontWeight: 500,
                     color: active ? 'var(--primary)' : 'var(--text-2)',
-                    background: active ? 'var(--primary-light)' : 'transparent',
+                    background: active
+                      ? 'linear-gradient(135deg, rgba(var(--primary-rgb),0.18), rgba(var(--accent-rgb),0.12))'
+                      : 'transparent',
                     letterSpacing: active ? undefined : '0.003em',
                     textDecoration: 'none',
                     transition: 'color 0.15s, background 0.15s',
@@ -165,9 +186,9 @@ export function Navbar() {
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
-                border: 'none',
-                background: 'transparent',
+                borderRadius: 999,
+                border: '1px solid var(--border-subtle)',
+                background: 'rgba(255,255,255,0.5)',
                 color: 'var(--text-2)',
                 display: 'flex',
                 alignItems: 'center',
@@ -208,9 +229,9 @@ export function Navbar() {
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
-                border: 'none',
-                background: 'transparent',
+                borderRadius: 999,
+                border: '1px solid var(--border-subtle)',
+                background: 'rgba(255,255,255,0.5)',
                 color: 'var(--text-2)',
                 display: 'flex',
                 alignItems: 'center',
@@ -275,8 +296,8 @@ export function Navbar() {
               style={{
                 width: 32,
                 height: 32,
-                borderRadius: 8,
-                border: 'none',
+                borderRadius: 999,
+                border: '1px solid var(--border-subtle)',
                 background: mobileOpen ? 'var(--surface-2)' : 'transparent',
                 color: 'var(--text-2)',
                 display: 'none',

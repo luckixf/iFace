@@ -88,9 +88,9 @@ export const DIFFICULTY_STYLES: Record<
   Difficulty,
   { color: string; background: string; borderColor: string }
 > = {
-  1: { color: '#10b981', background: 'rgba(16,185,129,0.1)', borderColor: 'rgba(16,185,129,0.2)' },
-  2: { color: '#f59e0b', background: 'rgba(245,158,11,0.1)', borderColor: 'rgba(245,158,11,0.2)' },
-  3: { color: '#ef4444', background: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.2)' },
+  1: { color: '#37b987', background: 'rgba(55,185,135,0.13)', borderColor: 'rgba(55,185,135,0.22)' },
+  2: { color: '#e8893d', background: 'rgba(243,155,74,0.14)', borderColor: 'rgba(243,155,74,0.24)' },
+  3: { color: '#f05e86', background: 'rgba(240,94,134,0.13)', borderColor: 'rgba(240,94,134,0.24)' },
 }
 
 export const STATUS_LABELS: Record<StudyStatus, string> = {
@@ -137,19 +137,19 @@ export const QUESTION_TYPE_STYLES: Record<
   { color: string; background: string; borderColor: string }
 > = {
   single: {
-    color: '#2563eb',
-    background: 'rgba(37,99,235,0.1)',
-    borderColor: 'rgba(37,99,235,0.18)',
+    color: '#ff5da5',
+    background: 'rgba(255,111,174,0.13)',
+    borderColor: 'rgba(255,111,174,0.24)',
   },
   multiple: {
-    color: '#7c3aed',
-    background: 'rgba(124,58,237,0.1)',
-    borderColor: 'rgba(124,58,237,0.18)',
+    color: '#8f6ff0',
+    background: 'rgba(157,123,255,0.13)',
+    borderColor: 'rgba(157,123,255,0.24)',
   },
   essay: {
-    color: '#dc2626',
-    background: 'rgba(220,38,38,0.1)',
-    borderColor: 'rgba(220,38,38,0.18)',
+    color: '#dd6f9f',
+    background: 'rgba(224,160,192,0.16)',
+    borderColor: 'rgba(224,160,192,0.28)',
   },
 }
 
